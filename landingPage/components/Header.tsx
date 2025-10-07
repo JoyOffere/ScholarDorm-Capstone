@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BookOpenIcon, MenuIcon, XIcon } from 'lucide-react'
+import { MenuIcon, XIcon } from 'lucide-react'
 
 export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -24,7 +24,11 @@ export const Header = () => {
     >
       <div className="container mx-auto px-4 md:px-6 flex items-center justify-between">
         <div className="flex items-center">
-          <BookOpenIcon className="h-8 w-8 text-primary-600" />
+          <img 
+            src="/SCHOLARDORM_LOGO.png" 
+            alt="ScholarDorm Logo" 
+            className="h-8 w-8 object-contain"
+          />
           <span className="ml-2 text-xl font-bold text-primary-800">
             ScholarDorm
           </span>

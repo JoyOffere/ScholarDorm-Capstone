@@ -213,8 +213,8 @@ export const RSLModal: React.FC<RSLModalProps> = ({ isOpen, onClose, userId }) =
                   <iframe
                     ref={videoRef}
                     className="w-full h-full"
-                    src={currentVideo?.video_url.replace('watch?v=', 'embed/') + '?controls=0&rel=0'}
-                    title={currentVideo?.title}
+                    src="https://www.youtube.com/embed/2ATl9JVycYk?controls=0&rel=0"
+                    title={currentVideo?.title || "Rwandan Sign Language Video"}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
                   ></iframe>

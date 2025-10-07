@@ -25,6 +25,7 @@ export const WelcomeModal = () => {
       title: 'Rwandan Sign Language',
       description:
         'Experience our innovative RSL module, crafted to make education accessible for deaf students.',
+      videoUrl: 'https://www.youtube.com/watch?v=2ATl9JVycYk',
     },
     {
       icon: <StarIcon className="w-14 h-14 text-yellow-500" />,
@@ -104,23 +105,66 @@ export const WelcomeModal = () => {
                   transition={{ duration: 0.4, ease: 'easeInOut' }}
                   className="flex flex-col items-center text-center"
                 >
-                  <motion.div
-                    initial={{ scale: 0.7, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ delay: 0.2, type: 'spring', stiffness: 100, damping: 15 }}
-                    className="mb-6 p-4 bg-gray-50 rounded-full shadow-inner"
-                  >
-                    {steps[currentStep].icon}
-                  </motion.div>
-                  <h2
-                    id="modal-title"
-                    className="text-2xl font-semibold text-gray-900 mb-3 tracking-tight"
-                  >
-                    {steps[currentStep].title}
-                  </h2>
-                  <p className="text-gray-600 mb-8 text-base leading-relaxed max-w-sm">
-                    {steps[currentStep].description}
-                  </p>
+                  {steps[currentStep].videoUrl ? (
+                    // RSL Video Step
+                    <div className="w-full">
+                      <motion.div
+                        initial={{ scale: 0.7, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.2, type: 'spring', stiffness: 100, damping: 15 }}
+                        className="mb-4 p-4 bg-gray-50 rounded-full shadow-inner mx-auto w-fit"
+                      >
+                        {steps[currentStep].icon}
+                      </motion.div>
+                      <h2
+                        id="modal-title"
+                        className="text-2xl font-semibold text-gray-900 mb-3 tracking-tight"
+                      >
+                        {steps[currentStep].title}
+                      </h2>
+                      <p className="text-gray-600 mb-4 text-base leading-relaxed">
+                        {steps[currentStep].description}
+                      </p>
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4, duration: 0.5 }}
+                        className="mb-4"
+                      >
+                        <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden shadow-md">
+                          <iframe
+                            src="https://www.youtube.com/embed/2ATl9JVycYk"
+                            title="Rwandan Sign Language Introduction"
+                            className="w-full h-full"
+                            frameBorder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                            allowFullScreen
+                          ></iframe>
+                        </div>
+                      </motion.div>
+                    </div>
+                  ) : (
+                    // Regular Steps
+                    <>
+                      <motion.div
+                        initial={{ scale: 0.7, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={{ delay: 0.2, type: 'spring', stiffness: 100, damping: 15 }}
+                        className="mb-6 p-4 bg-gray-50 rounded-full shadow-inner"
+                      >
+                        {steps[currentStep].icon}
+                      </motion.div>
+                      <h2
+                        id="modal-title"
+                        className="text-2xl font-semibold text-gray-900 mb-3 tracking-tight"
+                      >
+                        {steps[currentStep].title}
+                      </h2>
+                      <p className="text-gray-600 mb-8 text-base leading-relaxed max-w-sm">
+                        {steps[currentStep].description}
+                      </p>
+                    </>
+                  )}
                 </motion.div>
               </AnimatePresence>
 

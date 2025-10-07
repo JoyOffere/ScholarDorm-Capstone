@@ -187,7 +187,7 @@ export const Hero = () => {
                 }}
               >
                 <Link
-                  to="/signup"
+                  to="/sign"
                   onClick={() => console.log('Get Started button clicked from hero')}
                   className="px-8 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-lg shadow-primary-200 flex items-center gap-2"
                 >
@@ -205,17 +205,21 @@ export const Hero = () => {
                   </motion.span>
                 </Link>
               </motion.div>
-              <motion.button
+              <motion.div
                 whileHover={{
                   scale: 1.05,
                 }}
                 whileTap={{
                   scale: 0.95,
                 }}
-                className="px-8 py-3 bg-white text-primary-600 border border-primary-200 rounded-lg font-medium hover:bg-primary-50 transition-colors shadow-md"
               >
-                Learn More
-              </motion.button>
+                <Link
+                  to="/rsl"
+                  className="px-8 py-3 bg-white text-primary-600 border border-primary-200 rounded-lg font-medium hover:bg-primary-50 transition-colors shadow-md inline-block"
+                >
+                  Learn More
+                </Link>
+              </motion.div>
             </motion.div>
             <motion.div
               initial={{
@@ -251,12 +255,7 @@ export const Hero = () => {
                     }}
                     className="w-10 h-10 rounded-full bg-primary-100 border-2 border-white flex items-center justify-center text-xs font-medium text-primary-700 shadow-sm"
                   >
-                    {/* Use actual profile images instead of numbers */}
-                    <img
-                      src={`https://randomuser.me/api/portraits/${i % 2 === 0 ? 'women' : 'men'}/${i + 10}.jpg`}
-                      alt="User"
-                      className="w-full h-full object-cover rounded-full"
-                    />
+                    {i}
                   </motion.div>
                 ))}
               </div>
@@ -284,9 +283,9 @@ export const Hero = () => {
                   }}
                   className="font-semibold"
                 >
-                  1,000+
+                  Students
                 </motion.span>{' '}
-                students already learning
+                are ready to learn
               </motion.p>
             </motion.div>
           </motion.div>

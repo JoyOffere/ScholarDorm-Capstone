@@ -5,6 +5,8 @@ import {
   ChevronRightIcon,
   StarIcon,
   QuoteIcon,
+  User,
+  UserCheck,
 } from 'lucide-react'
 const testimonials = [
   {
@@ -13,7 +15,7 @@ const testimonials = [
       'Scholardorm has revolutionized how I learn. The RSL module is particularly impressive, making education truly inclusive for deaf students like me.',
     author: 'Diane Mutoni',
     role: 'Student',
-    avatar: 'https://randomuser.me/api/portraits/women/17.jpg',
+    gender: 'female',
     rating: 5,
   },
   {
@@ -22,7 +24,7 @@ const testimonials = [
       "As an educator, I've seen firsthand how Scholardorm's interactive approach engages students and improves learning outcomes. The RSL feature is groundbreaking.",
     author: 'Jean-Paul Habimana',
     role: 'High School Teacher',
-    avatar: 'https://randomuser.me/api/portraits/men/32.jpg',
+    gender: 'male',
     rating: 5,
   },
   {
@@ -31,7 +33,7 @@ const testimonials = [
       "The platform's gamification elements make learning fun and competitive. My students are more motivated than ever to complete their assignments.",
     author: 'Marie Claire Uwase',
     role: 'Primary School Teacher',
-    avatar: 'https://randomuser.me/api/portraits/women/44.jpg',
+    gender: 'female',
     rating: 4,
   },
   {
@@ -40,7 +42,7 @@ const testimonials = [
       "The RSL module has helped me connect with my deaf classmates. Now we can study together and I've even learned basic sign language!",
     author: 'Eric Mugisha',
     role: 'Student',
-    avatar: 'https://randomuser.me/api/portraits/men/67.jpg',
+    gender: 'male',
     rating: 5,
   },
 ]
@@ -137,11 +139,13 @@ export const Testimonials = () => {
                         >
                           <div className="flex justify-between items-start mb-6">
                             <div className="flex space-x-4">
-                              <img
-                                src={testimonial.avatar}
-                                alt={testimonial.author}
-                                className="w-12 h-12 rounded-full object-cover"
-                              />
+                              <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center text-primary-600">
+                                {testimonial.gender === 'female' ? (
+                                  <UserCheck size={24} />
+                                ) : (
+                                  <User size={24} />
+                                )}
+                              </div>
                               <div>
                                 <h3 className="font-semibold text-slate-900">
                                   {testimonial.author}
