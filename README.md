@@ -200,7 +200,14 @@ Contributions are welcome (after my capstone Defense, of course)! Please open is
 This project is private and not publicly licensed.
 
 ## Link to Software
+https://scholardorm-lms.vercel.app/
 
+
+## Link to Demo
+
+
+## Figma Link
+https://www.figma.com/design/sGBj3LQ856Ffliu4rReGVL/Capstone?node-id=0-1&p=f&t=HJkD0LabE0whHPjh-0
 
 ## Author
 
