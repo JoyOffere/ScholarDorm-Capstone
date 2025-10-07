@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, EyeIcon, BookOpenIcon, CheckCircleIcon, XCircleIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, ClockIcon, CalendarIcon, UserIcon } from 'lucide-react';
+import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, EyeIcon, BookOpenIcon, CheckCircleIcon, XCircleIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, ClockIcon, CalendarIcon, VideoIcon, SettingsIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { getCourses, deleteCourse, Course } from '../../../lib/supabase-utils';
+import { RSLService, RSLAccessibilitySettings } from '../../../lib/rsl-service';
+import { useAuth } from '../../../contexts/AuthContext';
 interface CourseWithDetails extends Omit<Course, 'difficulty_level'> {
   difficulty_level: string;
   created_by_name?: string;
   lesson_count?: number;
 }
 export const AdminCourses: React.FC = () => {
+  const { user } = useAuth();
   const [courses, setCourses] = useState<CourseWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -30,9 +33,147 @@ export const AdminCourses: React.FC = () => {
     difficulty_level: 'beginner',
     is_active: true
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createFormData, setCreateFormData] = useState({
+    title: '',
+    description: '',
+    subject: '',
+    difficulty_level: 'beginner',
+    is_active: true
+  });
+  const [createLessons, setCreateLessons] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    content_type: 'video' | 'text' | 'interactive' | 'quiz';
+    content_url?: string;
+    duration_minutes?: number;
+    order_index: number;
+  }[]>([]);
+  const [rslSettings, setRslSettings] = useState<RSLAccessibilitySettings>({
+    show_captions: true,
+    video_speed: 1.0,
+    high_contrast: false,
+    large_text: false,
+    auto_repeat: false,
+    sign_descriptions: true,
+  });
+
+  // New handlers for create course modal
+  const handleCreateInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setCreateFormData({
+      ...createFormData,
+      [name]: value
+    });
+  };
+
+  const handleCreateCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, checked } = e.target;
+    setCreateFormData({
+      ...createFormData,
+      [name]: checked
+    });
+  };
+
+  const handleAddLesson = () => {
+    const newLesson = {
+      id: Date.now().toString(),
+      title: '',
+      description: '',
+      content_type: 'video' as const,
+      content_url: '',
+      duration_minutes: 0,
+      order_index: createLessons.length
+    };
+    setCreateLessons([...createLessons, newLesson]);
+  };
+
+  const handleLessonChange = (index: number, field: string, value: any) => {
+    const updatedLessons = [...createLessons];
+    (updatedLessons[index] as any)[field] = value;
+    setCreateLessons(updatedLessons);
+  };
+
+  const handleRemoveLesson = (index: number) => {
+    const updatedLessons = [...createLessons];
+    updatedLessons.splice(index, 1);
+    // Reorder remaining lessons
+    updatedLessons.forEach((lesson, idx) => {
+      lesson.order_index = idx;
+    });
+    setCreateLessons(updatedLessons);
+  };
+
+  const handleCreateSubmit = async () => {
+    if (!createFormData.title || !createFormData.subject) {
+      alert('Please fill in all required fields');
+      return;
+    }
+    try {
+      setLoading(true);
+      // Insert course
+      const { data: courseData, error: courseError } = await supabase.from('courses').insert({
+        title: createFormData.title,
+        description: createFormData.description,
+        subject: createFormData.subject,
+        difficulty_level: createFormData.difficulty_level,
+        is_active: createFormData.is_active,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }).select().single();
+      if (courseError) throw courseError;
+
+      // Insert lessons if any
+      if (createLessons.length > 0) {
+        const lessonsToInsert = createLessons.map(lesson => ({
+          course_id: courseData.id,
+          title: lesson.title,
+          description: lesson.description,
+          content_type: lesson.content_type,
+          content_url: lesson.content_url,
+          duration_minutes: lesson.duration_minutes,
+          order_index: lesson.order_index
+        }));
+        const { error: lessonsError } = await supabase.from('lessons').insert(lessonsToInsert);
+        if (lessonsError) throw lessonsError;
+      }
+
+      // Refresh courses list
+      await fetchCourses();
+
+      // Reset form and close modal
+      setCreateFormData({
+        title: '',
+        description: '',
+        subject: '',
+        difficulty_level: 'beginner',
+        is_active: true
+      });
+      setCreateLessons([]);
+      setShowCreateModal(false);
+    } catch (error) {
+      console.error('Error creating course:', error);
+      alert('Failed to create course');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchCourses();
+    loadRSLSettings();
   }, [subjectFilter, difficultyFilter, statusFilter]);
+
+  const loadRSLSettings = async () => {
+    try {
+      const settings = await RSLService.getAccessibilitySettings(user?.id || '');
+      setRslSettings(settings);
+    } catch (error) {
+      console.error('Error loading RSL settings:', error);
+    }
+  };
+
   const fetchCourses = async () => {
     try {
       setLoading(true);
@@ -64,14 +205,17 @@ export const AdminCourses: React.FC = () => {
       setLoading(false);
     }
   };
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchCourses();
   };
+
   const handleDeleteClick = (courseId: string) => {
     setCourseToDelete(courseId);
     setShowDeleteModal(true);
   };
+
   const confirmDelete = async () => {
     if (!courseToDelete) return;
     try {
@@ -93,12 +237,15 @@ export const AdminCourses: React.FC = () => {
       setLoading(false);
     }
   };
+
   const resetFilters = () => {
     setSearchTerm('');
     setSubjectFilter(null);
     setDifficultyFilter(null);
     setStatusFilter(null);
+    fetchCourses();
   };
+
   const toggleCourseStatus = async (courseId: string, currentStatus: boolean) => {
     try {
       const {
@@ -124,6 +271,7 @@ export const AdminCourses: React.FC = () => {
       console.error('Error toggling course status:', error);
     }
   };
+
   const handleCourseClick = (course: CourseWithDetails) => {
     setSelectedCourse(course);
     setShowCourseModal(true);
@@ -136,12 +284,15 @@ export const AdminCourses: React.FC = () => {
       is_active: course.is_active
     });
   };
+
   const handleEditClick = () => {
     setIsEditing(true);
   };
+
   const handleEditCancel = () => {
     setIsEditing(false);
   };
+
   const handleEditSubmit = async () => {
     if (!selectedCourse) return;
     try {
@@ -165,7 +316,7 @@ export const AdminCourses: React.FC = () => {
         difficulty_level: editFormData.difficulty_level,
         is_active: editFormData.is_active
       } : course));
-      // Uate pdate selected course
+      // Update selected course
       setSelectedCourse({
         ...selectedCourse,
         title: editFormData.title,
@@ -179,6 +330,7 @@ export const AdminCourses: React.FC = () => {
       console.error('Error updating course:', error);
     }
   };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const {
       name,
@@ -189,6 +341,7 @@ export const AdminCourses: React.FC = () => {
       [name]: value
     });
   };
+
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const {
       name,
@@ -199,6 +352,127 @@ export const AdminCourses: React.FC = () => {
       [name]: checked
     });
   };
+
+  // Render create course modal
+  const renderCreateCourseModal = () => {
+    if (!showCreateModal) return null;
+    return (
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+          <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+          </div>
+          <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+          <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+            <div className="bg-purple-50 px-4 py-3 border-b border-purple-100 flex justify-between items-center">
+              <h3 className="text-lg font-medium text-purple-900">Create New Course</h3>
+              <button onClick={() => setShowCreateModal(false)} className="text-purple-500 hover:text-purple-700 focus:outline-none">
+                <XIcon size={20} />
+              </button>
+            </div>
+            <div className="p-6 max-h-[80vh] overflow-y-auto">
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="title" className="block text-sm font-medium text-gray-700">Title *</label>
+                  <input type="text" name="title" id="title" value={createFormData.title} onChange={handleCreateInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                </div>
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-gray-700">Description</label>
+                  <textarea name="description" id="description" rows={3} value={createFormData.description} onChange={handleCreateInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="subject" className="block text-sm font-medium text-gray-700">Subject *</label>
+                    <input type="text" name="subject" id="subject" value={createFormData.subject} onChange={handleCreateInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="difficulty_level" className="block text-sm font-medium text-gray-700">Difficulty</label>
+                    <select name="difficulty_level" id="difficulty_level" value={createFormData.difficulty_level} onChange={handleCreateInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                      <option value="beginner">Beginner</option>
+                      <option value="intermediate">Intermediate</option>
+                      <option value="advanced">Advanced</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <input type="checkbox" name="is_active" id="is_active" checked={createFormData.is_active} onChange={handleCreateCheckboxChange} className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" />
+                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">Active</label>
+                </div>
+                {/* Lessons Section */}
+                <div className="border-t pt-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-base font-medium text-gray-900">Lessons</h4>
+                    <button type="button" onClick={handleAddLesson} className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                      <PlusIcon size={16} className="mr-1" />
+                      Add Lesson
+                    </button>
+                  </div>
+                  {createLessons.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg border-gray-300 text-gray-500">
+                      No lessons added yet. Click "Add Lesson" to get started.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {createLessons.map((lesson, index) => (
+                        <div key={lesson.id} className="border rounded-lg p-4 bg-gray-50">
+                          <div className="flex items-center justify-between mb-3">
+                            <h5 className="font-medium text-gray-900">Lesson {index + 1}</h5>
+                            <button type="button" onClick={() => handleRemoveLesson(index)} className="p-1 rounded text-red-600 hover:bg-red-50">
+                              <XIcon size={16} />
+                            </button>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Title *</label>
+                              <input type="text" value={lesson.title} onChange={e => handleLessonChange(index, 'title', e.target.value)} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-sm" placeholder="Lesson title" />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                              <textarea value={lesson.description} onChange={e => handleLessonChange(index, 'description', e.target.value)} rows={2} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-sm" placeholder="Lesson description" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Content Type</label>
+                                <select value={lesson.content_type} onChange={e => handleLessonChange(index, 'content_type', e.target.value)} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-sm">
+                                  <option value="video">Video</option>
+                                  <option value="text">Text</option>
+                                  <option value="interactive">Interactive</option>
+                                  <option value="quiz">Quiz</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Duration (minutes)</label>
+                                <input type="number" min={0} value={lesson.duration_minutes || 0} onChange={e => handleLessonChange(index, 'duration_minutes', parseInt(e.target.value) || 0)} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-sm" />
+                              </div>
+                            </div>
+                            {(lesson.content_type === 'video' || lesson.content_type === 'interactive') && (
+                              <div>
+                                <label className="block text-xs font-medium text-gray-700 mb-1">Content URL</label>
+                                <input type="text" value={lesson.content_url || ''} onChange={e => handleLessonChange(index, 'content_url', e.target.value)} className="block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 text-sm" placeholder="https://example.com/video.mp4" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <button type="button" onClick={handleCreateSubmit} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm">
+                Create Course
+              </button>
+              <button type="button" onClick={() => setShowCreateModal(false)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return <DashboardLayout title="Course Management" role="admin">
       {/* Filters and actions */}
       <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200 mb-6">
@@ -219,10 +493,10 @@ export const AdminCourses: React.FC = () => {
               {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
             </button>
             {/* Create Course button */}
-            <Link to="/admin/courses/create" className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+            <button onClick={() => setShowCreateModal(true)} className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
               <PlusIcon size={16} className="mr-2" />
               New Course
-            </Link>
+            </button>
           </div>
           {/* Filters - hidden on mobile unless toggled */}
           <div className={`flex flex-wrap items-center gap-3 ${showMobileFilters ? 'flex' : 'hidden md:flex'}`}>
@@ -669,5 +943,9 @@ export const AdminCourses: React.FC = () => {
             </div>
           </div>
         </div>}
+      {/* Create Course Modal */}
+      {renderCreateCourseModal()}
     </DashboardLayout>;
 };
+
+

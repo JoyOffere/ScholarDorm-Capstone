@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { BellIcon, EyeIcon, GlobeIcon, LockIcon, SaveIcon, ShieldIcon, ToggleLeftIcon, ToggleRightIcon, VideoIcon, AlertCircleIcon } from 'lucide-react';
+import { BellIcon, EyeIcon, GlobeIcon, LockIcon, SaveIcon, ShieldIcon, ToggleLeftIcon, ToggleRightIcon, VideoIcon, AlertCircleIcon, CheckCircleIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { createAuditLog } from '../../../lib/supabase-utils';
+import { useAuth } from '../../../contexts/AuthContext';
 import { Button } from '../../common/Button';
 export const StudentSettings: React.FC = () => {
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
   const [settings, setSettings] = useState({
@@ -80,13 +82,16 @@ export const StudentSettings: React.FC = () => {
     fetchUserSettings();
   }, []);
   const handleToggleChange = (category: string, setting: string) => {
-    setSettings(prev => ({
-      ...prev,
-      [category]: {
-        ...prev[category as keyof typeof prev],
-        [setting]: !prev[category as keyof typeof prev][setting as any]
-      }
-    }));
+    setSettings(prev => {
+      const updatedCategory = {
+        ...(prev as any)[category],
+        [setting]: !(prev as any)[category]?.[setting]
+      };
+      return {
+        ...(prev as any),
+        [category]: updatedCategory
+      } as any;
+    });
     // Clear success message when changes are made
     setSaveSuccess(false);
   };

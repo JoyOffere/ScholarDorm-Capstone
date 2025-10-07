@@ -1,664 +1,862 @@
 import React, { useEffect, useState } from 'react';
-import { DashboardLayout } from '../../layout/DashboardLayout';
-import { UsersIcon, BookOpenIcon, AwardIcon, TrendingUpIcon, ActivityIcon, BellIcon, UserPlusIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, CalendarIcon, ClockIcon, RefreshCwIcon, BarChart2Icon } from 'lucide-react';
-import { supabase } from '../../../lib/supabase';
 import { Link } from 'react-router-dom';
-interface DashboardStat {
-  name: string;
-  value: string | number;
-  icon: React.ReactNode;
-  color: string;
-  change?: {
-    value: number;
-    isPositive: boolean;
-  };
+import { DashboardLayout } from '../../layout/DashboardLayout';
+import { 
+  UsersIcon, BookIcon, ClipboardListIcon, TrendingUpIcon, ActivityIcon, 
+  BellIcon, SettingsIcon, BarChartIcon, PlusIcon, EyeIcon, CalendarIcon, 
+  ArrowRightIcon, GraduationCapIcon, GamepadIcon, MessageSquareIcon,
+  AlertCircleIcon, CheckCircleIcon, ClockIcon, Award, Target, TrendingDownIcon, XIcon, VideoIcon
+} from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
+
+interface EnhancedStats {
+  totalUsers: number;
+  totalCourses: number;
+  totalQuizzes: number;
+  activeUsers: number;
+  totalEnrollments: number;
+  completedCourses: number;
+  totalBadgesEarned: number;
+  averageQuizScore: number;
+  totalGames: number;
+  totalPosts: number;
+  pendingFeedback: number;
+  systemHealth: number;
 }
+
 interface RecentActivity {
   id: string;
-  user: {
-    id: string;
-    name: string;
-    avatar?: string;
-  };
   action: string;
-  target: string;
-  time: string;
-  timestamp: Date;
+  user_email: string;
+  created_at: string;
+  details?: any;
 }
-interface NewUser {
-  id: string;
-  name: string;
-  avatar?: string;
-  joined: string;
-  completed: number;
+
+interface ChartData {
+  enrollmentTrend: Array<{ date: string; enrollments: number }>;
+  completionRates: Array<{ course: string; rate: number }>;
+  userGrowth: Array<{ month: string; users: number }>;
 }
-interface AdminNotification {
-  id: string;
-  message: string;
-  time: string;
-  timestamp: Date;
-  priority: 'high' | 'medium' | 'low';
-}
+
 export const AdminDashboard: React.FC = () => {
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [stats, setStats] = useState<DashboardStat[]>([]);
+  const [stats, setStats] = useState<EnhancedStats>({
+    totalUsers: 0,
+    totalCourses: 0,
+    totalQuizzes: 0,
+    activeUsers: 0,
+    totalEnrollments: 0,
+    completedCourses: 0,
+    totalBadgesEarned: 0,
+    averageQuizScore: 0,
+    totalGames: 0,
+    totalPosts: 0,
+    pendingFeedback: 0,
+    systemHealth: 95,
+  });
   const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
-  const [newUsers, setNewUsers] = useState<NewUser[]>([]);
-  const [notifications, setNotifications] = useState<AdminNotification[]>([]);
-  const [timeRange, setTimeRange] = useState<'today' | 'week' | 'month'>('week');
+  const [chartData, setChartData] = useState<ChartData>({
+    enrollmentTrend: [],
+    completionRates: [],
+    userGrowth: [],
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(true);
+
   useEffect(() => {
-    fetchDashboardData();
-  }, [timeRange]);
-  const fetchDashboardData = async () => {
+    const loadData = async () => {
+      console.log('Starting to load dashboard data');
+      try {
+        const fallbackTimer = setTimeout(() => {
+          console.warn('Admin dashboard loading timed out, unblocking UI');
+          setError('Dashboard loading timed out');
+          setLoading(false);
+        }, 10000);
+
+        Promise.all([
+          fetchEnhancedStats(),
+          fetchRecentActivities(),
+          fetchChartData()
+        ]).then(() => {
+          console.log('Dashboard data loaded successfully');
+          clearTimeout(fallbackTimer);
+        }).catch(err => {
+          console.error('Error during dashboard data loading:', err);
+          clearTimeout(fallbackTimer);
+          setError('Failed to load dashboard data');
+        });
+      } catch (err) {
+        setError('Failed to load dashboard data');
+        console.error('Dashboard loading error:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  const fetchEnhancedStats = async () => {
     try {
-      setLoading(true);
-      await Promise.all([fetchStats(), fetchRecentActivities(), fetchNewUsers(), fetchNotifications()]);
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-  const refreshDashboard = async () => {
-    try {
-      setRefreshing(true);
-      await fetchDashboardData();
-    } finally {
-      setRefreshing(false);
-    }
-  };
-  const fetchStats = async () => {
-    try {
-      // Get total student count
-      const {
-        count: studentCount,
-        error: studentError
-      } = await supabase.from('users').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('role', 'student');
-      if (studentError) throw studentError;
-      // Get active courses count
-      const {
-        count: courseCount,
-        error: courseError
-      } = await supabase.from('courses').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('is_active', true);
-      if (courseError) throw courseError;
-      // Get badges count
-      const {
-        count: badgeCount,
-        error: badgeError
-      } = await supabase.from('badges').select('*', {
-        count: 'exact',
-        head: true
+      const [
+        usersResult,
+        coursesResult,
+        quizzesResult,
+        activeUsersResult,
+        enrollmentsResult,
+        completionsResult,
+        badgesResult,
+        quizScoreResult,
+        gamesResult,
+        postsResult,
+        feedbackResult
+      ] = await Promise.all([
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('courses').select('*', { count: 'exact', head: true }),
+        supabase.from('quizzes').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .gte('last_login', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+        supabase.from('user_courses').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('user_courses')
+          .select('*', { count: 'exact', head: true })
+          .eq('completed', true),
+        supabase.from('user_badges').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('quiz_attempts')
+          .select('percentage'),
+        supabase.from('games').select('*', { count: 'exact', head: true }),
+        supabase.from('posts').select('*', { count: 'exact', head: true }),
+        supabase
+          .from('feedback')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'pending')
+      ]);
+
+      const avgScore = quizScoreResult.data && quizScoreResult.data.length > 0
+        ? quizScoreResult.data.reduce((sum: number, attempt: any) => sum + attempt.percentage, 0) / quizScoreResult.data.length
+        : 0;
+
+      setStats({
+        totalUsers: usersResult.count || 0,
+        totalCourses: coursesResult.count || 0,
+        totalQuizzes: quizzesResult.count || 0,
+        activeUsers: activeUsersResult.count || 0,
+        totalEnrollments: enrollmentsResult.count || 0,
+        completedCourses: completionsResult.count || 0,
+        totalBadgesEarned: badgesResult.count || 0,
+        averageQuizScore: Math.round(avgScore),
+        totalGames: gamesResult.count || 0,
+        totalPosts: postsResult.count || 0,
+        pendingFeedback: feedbackResult.count || 0,
+        systemHealth: 95,
       });
-      if (badgeError) throw badgeError;
-      // Get average streak
-      const {
-        data: streakData,
-        error: streakError
-      } = await supabase.from('users').select('streak_count').eq('role', 'student').gt('streak_count', 0);
-      if (streakError) throw streakError;
-      const avgStreak = streakData && streakData.length > 0 ? (streakData.reduce((sum, user) => sum + (user.streak_count || 0), 0) / streakData.length).toFixed(1) : '0';
-      // Calculate user growth
-      const now = new Date();
-      let startDate: Date;
-      if (timeRange === 'today') {
-        startDate = new Date(now.setHours(0, 0, 0, 0));
-      } else if (timeRange === 'week') {
-        startDate = new Date(now);
-        startDate.setDate(now.getDate() - 7);
-      } else {
-        startDate = new Date(now);
-        startDate.setMonth(now.getMonth() - 1);
-      }
-      const {
-        count: newUserCount,
-        error: newUserError
-      } = await supabase.from('users').select('*', {
-        count: 'exact',
-        head: true
-      }).gte('created_at', startDate.toISOString());
-      if (newUserError) throw newUserError;
-      // Get previous period data for comparison
-      const previousStartDate = new Date(startDate);
-      if (timeRange === 'today') {
-        previousStartDate.setDate(previousStartDate.getDate() - 1);
-      } else if (timeRange === 'week') {
-        previousStartDate.setDate(previousStartDate.getDate() - 7);
-      } else {
-        previousStartDate.setMonth(previousStartDate.getMonth() - 1);
-      }
-      const {
-        count: previousUserCount,
-        error: prevUserError
-      } = await supabase.from('users').select('*', {
-        count: 'exact',
-        head: true
-      }).gte('created_at', previousStartDate.toISOString()).lt('created_at', startDate.toISOString());
-      if (prevUserError) throw prevUserError;
-      // Calculate change percentage
-      const userChange = previousUserCount === 0 ? 100 : Math.round((newUserCount - previousUserCount) / previousUserCount * 100);
-      // Get course completion count
-      const {
-        count: completionCount,
-        error: completionError
-      } = await supabase.from('user_courses').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('completed', true).gte('completion_date', startDate.toISOString());
-      if (completionError) throw completionError;
-      // Get previous period completions
-      const {
-        count: prevCompletionCount,
-        error: prevCompletionError
-      } = await supabase.from('user_courses').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('completed', true).gte('completion_date', previousStartDate.toISOString()).lt('completion_date', startDate.toISOString());
-      if (prevCompletionError) throw prevCompletionError;
-      const completionChange = prevCompletionCount === 0 ? 100 : Math.round((completionCount - prevCompletionCount) / prevCompletionCount * 100);
-      setStats([{
-        name: 'Total Students',
-        value: studentCount || 0,
-        icon: <UsersIcon size={20} />,
-        color: 'blue',
-        change: {
-          value: userChange,
-          isPositive: userChange >= 0
-        }
-      }, {
-        name: 'Active Courses',
-        value: courseCount || 0,
-        icon: <BookOpenIcon size={20} />,
-        color: 'green'
-      }, {
-        name: 'Badges Created',
-        value: badgeCount || 0,
-        icon: <AwardIcon size={20} />,
-        color: 'yellow'
-      }, {
-        name: 'Avg. Streak',
-        value: `${avgStreak} days`,
-        icon: <ActivityIcon size={20} />,
-        color: 'orange'
-      }, {
-        name: 'Course Completions',
-        value: completionCount || 0,
-        icon: <CheckCircleIcon size={20} />,
-        color: 'purple',
-        change: {
-          value: completionChange,
-          isPositive: completionChange >= 0
-        }
-      }]);
     } catch (error) {
-      console.error('Error fetching stats:', error);
-      setStats([{
-        name: 'Total Students',
-        value: '0',
-        icon: <UsersIcon size={20} />,
-        color: 'blue'
-      }, {
-        name: 'Active Courses',
-        value: '0',
-        icon: <BookOpenIcon size={20} />,
-        color: 'green'
-      }, {
-        name: 'Badges Created',
-        value: '0',
-        icon: <AwardIcon size={20} />,
-        color: 'yellow'
-      }, {
-        name: 'Avg. Streak',
-        value: '0 days',
-        icon: <ActivityIcon size={20} />,
-        color: 'orange'
-      }]);
+      console.error('Error fetching enhanced stats:', error);
+      throw error;
     }
   };
+
   const fetchRecentActivities = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from('audit_logs').select(`
-          id, 
-          action, 
-          details,
+      const { data, error } = await supabase
+        .from('audit_logs')
+        .select(`
+          id,
+          action,
           created_at,
-          users:user_id (id, full_name, avatar_url)
-        `).order('created_at', {
-        ascending: false
-      }).limit(10);
+          users!inner(email)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(10); // Increased to 10 for more activities
+
       if (error) throw error;
-      if (data) {
-        const formattedActivities: RecentActivity[] = data.map(item => {
-          let action = item.action;
-          let target = '';
-          // Format action and target based on action type
-          switch (item.action) {
-            case 'course_start':
-              action = 'started';
-              target = item.details.course_title || 'a course';
-              break;
-            case 'course_complete':
-              action = 'completed';
-              target = item.details.course_title || 'a course';
-              break;
-            case 'badge_earned':
-              action = 'earned badge';
-              target = item.details.badge_name || 'an achievement';
-              break;
-            case 'login':
-              action = 'logged in';
-              target = '';
-              break;
-            case 'logout':
-              action = 'logged out';
-              target = '';
-              break;
-            case 'quiz_complete':
-              action = 'completed quiz';
-              target = item.details.quiz_title || 'a quiz';
-              break;
-            default:
-              action = item.action.replace(/_/g, ' ');
-              target = item.details.entity_name || '';
-          }
-          return {
-            id: item.id,
-            user: {
-              id: item.users?.id || '',
-              name: item.users?.full_name || 'Unknown User',
-              avatar: item.users?.avatar_url
-            },
-            action,
-            target,
-            timestamp: new Date(item.created_at),
-            time: formatTimeAgo(new Date(item.created_at))
-          };
-        });
-        setRecentActivities(formattedActivities);
-      }
+      const activities = data?.map(item => ({
+        id: item.id,
+        action: item.action,
+        user_email: (item.users as any).email,
+        created_at: item.created_at
+      })) || [];
+      setRecentActivities(activities);
     } catch (error) {
       console.error('Error fetching recent activities:', error);
-      setRecentActivities([]);
     }
   };
-  const fetchNewUsers = async () => {
+
+  const fetchChartData = async () => {
     try {
-      const {
-        data,
-        error
-      } = await supabase.from('users').select(`
-          id, 
-          full_name, 
-          avatar_url, 
-          created_at,
-          user_courses:user_courses!user_id(id)
-        `).eq('role', 'student').order('created_at', {
-        ascending: false
-      }).limit(5);
-      if (error) throw error;
-      if (data) {
-        const formattedUsers: NewUser[] = data.map(user => {
-          return {
-            id: user.id,
-            name: user.full_name || 'Unknown User',
-            avatar: user.avatar_url,
-            joined: formatTimeAgo(new Date(user.created_at)),
-            completed: Array.isArray(user.user_courses) ? user.user_courses.length : 0
-          };
-        });
-        setNewUsers(formattedUsers);
-      }
-    } catch (error) {
-      console.error('Error fetching new users:', error);
-      setNewUsers([]);
-    }
-  };
-  const fetchNotifications = async () => {
-    try {
-      // Get system notifications from the posts table
-      const {
-        data,
-        error
-      } = await supabase.from('posts').select('id, title, created_at').eq('post_type', 'announcement').eq('target_audience', 'admins').order('created_at', {
-        ascending: false
-      }).limit(3);
-      if (error) throw error;
-      // Get course completion rate alerts
-      const {
-        data: coursesData,
-        error: coursesError
-      } = await supabase.from('courses').select(`
-          id, 
-          title,
-          user_courses:user_courses!course_id(completed)
-        `).eq('is_active', true).order('created_at', {
-        ascending: false
-      }).limit(5);
-      if (coursesError) throw coursesError;
-      // Get recent user signups
-      const oneDayAgo = new Date();
-      oneDayAgo.setDate(oneDayAgo.getDate() - 1);
-      const {
-        count: recentSignups,
-        error: signupsError
-      } = await supabase.from('users').select('*', {
-        count: 'exact',
-        head: true
-      }).gte('created_at', oneDayAgo.toISOString());
-      if (signupsError) throw signupsError;
-      // Combine different types of notifications
-      const adminNotifications: AdminNotification[] = [];
-      // Add system notifications
-      if (data) {
-        data.forEach(post => {
-          adminNotifications.push({
-            id: `post-${post.id}`,
-            message: post.title,
-            timestamp: new Date(post.created_at),
-            time: formatTimeAgo(new Date(post.created_at)),
-            priority: 'medium'
-          });
+      // Enrollment trend over last 30 days for more data
+      const enrollmentTrend = [];
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        
+        const { count } = await supabase
+          .from('user_courses')
+          .select('*', { count: 'exact', head: true })
+          .gte('enrolled_at', dateStr)
+          .lt('enrolled_at', new Date(date.getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+        
+        enrollmentTrend.push({
+          date: dateStr,
+          enrollments: count || 0
         });
       }
-      // Add course completion rate alerts
-      if (coursesData) {
-        coursesData.forEach(course => {
-          if (course.user_courses && course.user_courses.length > 0) {
-            const totalEnrollments = course.user_courses.length;
-            const completions = course.user_courses.filter(c => c.completed).length;
-            const completionRate = totalEnrollments > 0 ? completions / totalEnrollments * 100 : 0;
-            if (completionRate < 30) {
-              adminNotifications.push({
-                id: `course-${course.id}`,
-                message: `${course.title} has a low completion rate (${Math.round(completionRate)}%)`,
-                timestamp: new Date(),
-                time: 'Today',
-                priority: 'medium'
-              });
-            }
-          }
-        });
-      }
-      // Add signup spike notification if applicable
-      if (recentSignups > 10) {
-        adminNotifications.push({
-          id: 'signup-spike',
-          message: `${recentSignups} new user registrations in the last 24 hours`,
-          timestamp: new Date(),
-          time: 'Today',
-          priority: 'high'
-        });
-      }
-      // Sort by priority and timestamp
-      adminNotifications.sort((a, b) => {
-        const priorityOrder = {
-          high: 0,
-          medium: 1,
-          low: 2
+
+      // Completion rates for all courses
+      const { data: coursesData } = await supabase
+        .from('courses')
+        .select(`
+          id, title,
+          user_courses!inner(completed)
+        `);
+
+      const completionRates = coursesData?.map(course => {
+        const enrollments = course.user_courses?.length || 0;
+        const completions = course.user_courses?.filter((uc: any) => uc.completed).length || 0;
+        return {
+          course: course.title,
+          rate: enrollments > 0 ? Math.round((completions / enrollments) * 100) : 0
         };
-        if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-          return priorityOrder[a.priority] - priorityOrder[b.priority];
-        }
-        return b.timestamp.getTime() - a.timestamp.getTime();
+      }) || [];
+
+      // User growth over last 12 months
+      const userGrowth = [];
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date();
+        date.setMonth(date.getMonth() - i);
+        const monthStr = date.toLocaleString('default', { month: 'short', year: 'numeric' });
+        
+        const { count } = await supabase
+          .from('users')
+          .select('*', { count: 'exact', head: true })
+          .gte('created_at', new Date(date.getFullYear(), date.getMonth(), 1).toISOString())
+          .lt('created_at', new Date(date.getFullYear(), date.getMonth() + 1, 1).toISOString());
+        
+        userGrowth.push({
+          month: monthStr,
+          users: count || 0
+        });
+      }
+
+      setChartData({
+        enrollmentTrend,
+        completionRates,
+        userGrowth
       });
-      setNotifications(adminNotifications.slice(0, 5));
     } catch (error) {
-      console.error('Error fetching notifications:', error);
-      setNotifications([]);
+      console.error('Error fetching chart data:', error);
+      setChartData({
+        enrollmentTrend: [],
+        completionRates: [],
+        userGrowth: []
+      });
     }
   };
-  const formatTimeAgo = (date: Date) => {
+
+  const statCards = [
+    {
+      title: 'Total Users',
+      value: stats.totalUsers,
+      icon: <UsersIcon size={24} />,
+      color: 'from-blue-500 to-blue-600',
+      bgColor: 'bg-blue-50',
+      textColor: 'text-blue-600',
+      subtext: `${stats.activeUsers} active this month`,
+      trend: '+12%',
+      trendColor: 'text-green-500',
+      trendIcon: TrendingUpIcon
+    },
+    {
+      title: 'Course Enrollments',
+      value: stats.totalEnrollments,
+      icon: <BookIcon size={24} />,
+      color: 'from-green-500 to-green-600',
+      bgColor: 'bg-green-50',
+      textColor: 'text-green-600',
+      subtext: `${stats.completedCourses} completed`,
+      trend: '+8%',
+      trendColor: 'text-green-500',
+      trendIcon: TrendingUpIcon
+    },
+    {
+      title: 'Badges Earned',
+      value: stats.totalBadgesEarned,
+      icon: <Award size={24} />,
+      color: 'from-purple-500 to-purple-600',
+      bgColor: 'bg-purple-50',
+      textColor: 'text-purple-600',
+      subtext: 'Achievement rewards',
+      trend: '+15%',
+      trendColor: 'text-green-500',
+      trendIcon: TrendingUpIcon
+    },
+    {
+      title: 'Avg Quiz Score',
+      value: `${stats.averageQuizScore}%`,
+      icon: <Target size={24} />,
+      color: 'from-orange-500 to-orange-600',
+      bgColor: 'bg-orange-50',
+      textColor: 'text-orange-600',
+      subtext: 'Student performance',
+      trend: '-2%',
+      trendColor: 'text-red-500',
+      trendIcon: TrendingDownIcon
+    },
+    {
+      title: 'Total Courses',
+      value: stats.totalCourses,
+      icon: <GraduationCapIcon size={24} />,
+      color: 'from-indigo-500 to-indigo-600',
+      bgColor: 'bg-indigo-50',
+      textColor: 'text-indigo-600',
+      subtext: 'Learning content',
+      trend: '+5%',
+      trendColor: 'text-green-500',
+      trendIcon: TrendingUpIcon
+    },
+    {
+      title: 'Games & Quizzes',
+      value: stats.totalGames + stats.totalQuizzes,
+      icon: <GamepadIcon size={24} />,
+      color: 'from-pink-500 to-pink-600',
+      bgColor: 'bg-pink-50',
+      textColor: 'text-pink-600',
+      subtext: 'Interactive content',
+      trend: '+10%',
+      trendColor: 'text-green-500',
+      trendIcon: TrendingUpIcon
+    },
+    {
+      title: 'Posts & Updates',
+      value: stats.totalPosts,
+      icon: <MessageSquareIcon size={24} />,
+      color: 'from-cyan-500 to-cyan-600',
+      bgColor: 'bg-cyan-50',
+      textColor: 'text-cyan-600',
+      subtext: 'Communications',
+      trend: '+7%',
+      trendColor: 'text-green-500',
+      trendIcon: TrendingUpIcon
+    },
+    {
+      title: 'System Health',
+      value: `${stats.systemHealth}%`,
+      icon: <CheckCircleIcon size={24} />,
+      color: 'from-emerald-500 to-emerald-600',
+      bgColor: 'bg-emerald-50',
+      textColor: 'text-emerald-600',
+      subtext: 'Platform status',
+      trend: '0%',
+      trendColor: 'text-gray-500',
+      trendIcon: TrendingUpIcon
+    }
+  ];
+
+  const quickActions = [
+    {
+      title: 'Manage Users',
+      description: 'View and manage user accounts',
+      icon: <UsersIcon size={20} />,
+      to: '/admin/users',
+      color: 'bg-blue-500 hover:bg-blue-600',
+      badge: stats.pendingFeedback > 0 ? stats.pendingFeedback : null
+    },
+    {
+      title: 'Create Course',
+      description: 'Add new learning content',
+      icon: <PlusIcon size={20} />,
+      to: '/admin/courses',
+      color: 'bg-green-500 hover:bg-green-600'
+    },
+    {
+      title: 'Analytics Hub',
+      description: 'Monitor platform performance',
+      icon: <BarChartIcon size={20} />,
+      to: '/admin/analytics',
+      color: 'bg-purple-500 hover:bg-purple-600'
+    },
+    {
+      title: 'Send Announcement',
+      description: 'Communicate with users',
+      icon: <BellIcon size={20} />,
+      to: '/admin/announcements',
+      color: 'bg-orange-500 hover:bg-orange-600'
+    },
+    {
+      title: 'Quiz Management',
+      description: 'Create and manage quizzes',
+      icon: <ClipboardListIcon size={20} />,
+      to: '/admin/quizzes',
+      color: 'bg-indigo-500 hover:bg-indigo-600'
+    },
+    {
+      title: 'Game Center',
+      description: 'Manage educational games',
+      icon: <GamepadIcon size={20} />,
+      to: '/admin/games',
+      color: 'bg-pink-500 hover:bg-pink-600'
+    },
+    {
+      title: 'Content Posts',
+      description: 'Manage posts and updates',
+      icon: <MessageSquareIcon size={20} />,
+      to: '/admin/posts',
+      color: 'bg-cyan-500 hover:bg-cyan-600'
+    },
+    {
+      title: 'System Settings',
+      description: 'Configure platform settings',
+      icon: <SettingsIcon size={20} />,
+      to: '/admin/settings',
+      color: 'bg-gray-500 hover:bg-gray-600'
+    }
+  ];
+
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'user_login':
+        return 'bg-blue-100 text-blue-800';
+      case 'course_enrollment':
+        return 'bg-green-100 text-green-800';
+      case 'quiz_attempt':
+        return 'bg-purple-100 text-purple-800';
+      case 'badge_earned':
+        return 'bg-yellow-100 text-yellow-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getActionIcon = (action: string) => {
+    switch (action) {
+      case 'user_login':
+        return <UsersIcon size={16} className="text-blue-600" />;
+      case 'course_enrollment':
+        return <BookIcon size={16} className="text-green-600" />;
+      case 'quiz_attempt':
+        return <ClipboardListIcon size={16} className="text-purple-600" />;
+      case 'badge_earned':
+        return <Award size={16} className="text-yellow-600" />;
+      default:
+        return <ActivityIcon size={16} className="text-gray-600" />;
+    }
+  };
+
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-    const diffDay = Math.floor(diffHour / 24);
-    if (diffDay > 0) {
-      return diffDay === 1 ? 'Yesterday' : `${diffDay} days ago`;
-    }
-    if (diffHour > 0) {
-      return `${diffHour} hour${diffHour === 1 ? '' : 's'} ago`;
-    }
-    if (diffMin > 0) {
-      return `${diffMin} minute${diffMin === 1 ? '' : 's'} ago`;
-    }
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
+
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    if (diffMins > 0) return `${diffMins}m ago`;
     return 'Just now';
   };
-  return <DashboardLayout title="Admin Dashboard" role="admin">
-      {/* Time range selector and refresh button */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="inline-flex rounded-md shadow-sm">
-          <button onClick={() => setTimeRange('today')} className={`px-4 py-2 text-sm font-medium rounded-l-lg ${timeRange === 'today' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'} border border-gray-300`}>
-            Today
-          </button>
-          <button onClick={() => setTimeRange('week')} className={`px-4 py-2 text-sm font-medium ${timeRange === 'week' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'} border-t border-b border-gray-300`}>
-            This Week
-          </button>
-          <button onClick={() => setTimeRange('month')} className={`px-4 py-2 text-sm font-medium rounded-r-lg ${timeRange === 'month' ? 'bg-purple-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'} border border-gray-300`}>
-            This Month
-          </button>
+
+  return (
+    <DashboardLayout title="Admin Dashboard" role="admin">
+      {loading && (
+        <div className="flex justify-center items-center h-screen">
+          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-purple-600 border-opacity-25 border-b-4"></div>
         </div>
-        <button onClick={refreshDashboard} disabled={refreshing} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50">
-          {refreshing ? <>
-              <RefreshCwIcon size={16} className="mr-2 animate-spin" />
-              Refreshing...
-            </> : <>
-              <RefreshCwIcon size={16} className="mr-2" />
-              Refresh Dashboard
-            </>}
-        </button>
-      </div>
+      )}
 
-      {loading ? <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
-          <span className="ml-3 text-lg text-gray-600">
-            Loading dashboard data...
-          </span>
-        </div> : <>
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6 mb-6">
-            {stats.map((stat, index) => <div key={index} className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <p className="text-sm font-medium text-gray-500">
-                      {stat.name}
-                    </p>
-                    <p className="mt-1 text-3xl font-semibold text-gray-900">
-                      {stat.value}
-                    </p>
-                    {stat.change && <p className={`text-xs font-medium flex items-center mt-2 ${stat.change.isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                        {stat.change.isPositive ? <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
-                          </svg> : <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                          </svg>}
-                        {Math.abs(stat.change.value)}%{' '}
-                        {timeRange === 'today' ? 'today' : timeRange === 'week' ? 'this week' : 'this month'}
-                      </p>}
-                  </div>
-                  <div className={`p-2 bg-${stat.color}-100 text-${stat.color}-600 rounded-full`}>
-                    {stat.icon}
-                  </div>
-                </div>
-              </div>)}
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Recent Activity */}
-            <div className="lg:col-span-2 bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-              <div className="flex justify-between items-start mb-6">
-                <h2 className="text-lg font-bold text-gray-800">
-                  Recent Activity
-                </h2>
-                <div className="p-2 bg-purple-100 text-purple-600 rounded-full">
-                  <TrendingUpIcon size={20} />
-                </div>
+      {/* Welcome Modal with RSL Video */}
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+              <div className="absolute top-4 right-4">
+                <button
+                  type="button"
+                  className="text-gray-400 hover:text-gray-500"
+                  onClick={() => setShowWelcomeModal(false)}
+                >
+                  <XIcon size={24} />
+                </button>
               </div>
-              <div className="space-y-4">
-                {recentActivities.length === 0 ? <div className="text-center py-8">
-                    <ActivityIcon size={40} className="mx-auto text-gray-400 mb-2" />
-                    <p className="text-gray-500">No recent activities found</p>
-                  </div> : recentActivities.map(activity => <div key={activity.id} className="flex items-start border-b border-gray-100 pb-4 last:border-0 last:pb-0">
-                      <div className="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                        {activity.user.avatar ? <img src={activity.user.avatar} alt={activity.user.name} className="h-full w-full object-cover" /> : <span className="text-gray-600 text-sm font-medium">
-                            {activity.user.name.charAt(0)}
-                          </span>}
-                      </div>
-                      <div className="ml-3 flex-1">
-                        <div className="text-sm">
-                          <Link to={`/admin/users/${activity.user.id}`} className="font-medium text-gray-800 hover:text-purple-600">
-                            {activity.user.name}
-                          </Link>{' '}
-                          <span className="text-gray-600">
-                            {activity.action}
-                          </span>{' '}
-                          {activity.target && <span className="font-medium text-gray-800">
-                              {activity.target}
-                            </span>}
-                        </div>
-                        <div className="flex items-center text-xs text-gray-500 mt-1">
-                          <ClockIcon size={12} className="mr-1" />
-                          {activity.time}
-                        </div>
-                      </div>
-                    </div>)}
-                <Link to="/admin/audit-log" className="w-full block mt-2 text-center text-sm text-purple-600 hover:text-purple-800 font-medium">
-                  View all activity
-                </Link>
+              <div className="p-8">
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to the Admin Dashboard</h2>
+                  <p className="text-gray-600 text-lg">Murakaza neza! (Welcome in Kinyarwanda)</p>
+                </div>
+                <div className="mb-6">
+                  <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center justify-center">
+                    <VideoIcon size={24} className="mr-2 text-purple-600" />
+                    Welcome in Rwandan Sign Language
+                  </h3>
+                  <div className="aspect-video rounded-xl overflow-hidden shadow-lg">
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src="https://www.youtube.com/embed/lkrFr7LIxYI"
+                      title="Rwandan Sign Language Greeting"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                    ></iframe>
+                  </div>
+                  <p className="text-sm text-gray-500 mt-2 text-center">Learn basic RSL greetings and introductions</p>
+                </div>
+                <div className="flex justify-center space-x-4">
+                  <button
+                    onClick={() => setShowWelcomeModal(false)}
+                    className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors shadow-md"
+                  >
+                    Get Started
+                  </button>
+                  <Link
+                    to="/admin/rsl-management"
+                    className="px-6 py-3 bg-white border border-purple-600 text-purple-600 rounded-lg hover:bg-purple-50 transition-colors shadow-md"
+                  >
+                    Manage RSL Content
+                  </Link>
+                </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
+      <div className="space-y-8">
+        {/* Welcome Section */}
+        <div className="bg-gradient-to-br from-purple-700 via-indigo-600 to-blue-600 rounded-2xl p-8 text-white shadow-2xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-white opacity-5 rounded-full -mr-20 -mt-20"></div>
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-white opacity-5 rounded-full -ml-16 -mb-16"></div>
+          <div className="flex flex-col md:flex-row items-center justify-between relative z-10 gap-6">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Welcome Back, Admin!</h1>
+              <p className="text-lg opacity-90">
+                Monitor and manage your educational platform with ease.
+                {stats.pendingFeedback > 0 && (
+                  <span className="block mt-2 text-yellow-200 font-medium">
+                    ⚠️ {stats.pendingFeedback} pending items require attention
+                  </span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => setShowWelcomeModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-white/20 backdrop-blur-sm rounded-lg hover:bg-white/30 transition-colors"
+              >
+                <VideoIcon size={18} className="mr-2" />
+                View RSL Welcome
+              </button>
+              <div className="text-right hidden md:block">
+                <p className="text-sm opacity-80">System Health</p>
+                <p className="text-2xl font-bold">{stats.systemHealth}%</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          {statCards.map((card, index) => (
+            <div 
+              key={index} 
+              className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group"
+            >
+              <div className={`bg-gradient-to-r ${card.color} p-4`}>
+                <div className="flex items-center justify-between">
+                  <div className={`${card.bgColor} p-3 rounded-full shadow-md group-hover:scale-105 transition-transform`}>
+                    <div className={card.textColor}>
+                      {card.icon}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-white/90 text-sm font-medium">{card.title}</p>
+                    <p className="text-2xl font-bold text-white">{typeof card.value === 'number' ? card.value.toLocaleString() : card.value}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">{card.subtext}</p>
+                  <div className="flex items-center gap-1">
+                    <card.trendIcon size={14} className={card.trendColor} />
+                    <span className={`text-xs font-medium ${card.trendColor}`}>{card.trend}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Analytics Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Enrollment Trend */}
+          <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                <TrendingUpIcon size={20} className="mr-2 text-blue-600" />
+                Enrollment Trend
+              </h3>
+              <span className="text-sm text-gray-500">Last 30 days</span>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData.enrollmentTrend}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={70} />
+                  <YAxis tick={{ fontSize: 12 }} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                    }}
+                  />
+                  <Legend />
+                  <Line 
+                    type="monotone" 
+                    dataKey="enrollments" 
+                    stroke="#3b82f6" 
+                    strokeWidth={2}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Completion Rates */}
+          <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-gray-800 flex items-center">
+                <Target size={20} className="mr-2 text-green-600" />
+                Course Completion Rates
+              </h3>
+              <span className="text-sm text-gray-500">Top Courses</span>
+            </div>
+            <div className="h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData.completionRates}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="course" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={70} />
+                  <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
+                  <Tooltip 
+                    formatter={(value) => `${value}%`}
+                    contentStyle={{ 
+                      backgroundColor: 'white',
+                      border: '1px solid #e5e5e5',
+                      borderRadius: '8px',
+                      padding: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                    }}
+                  />
+                  <Legend />
+                  <Bar 
+                    dataKey="rate" 
+                    fill="#22c55e" 
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
+            <SettingsIcon size={24} className="mr-2 text-purple-600" />
+            Quick Actions
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {quickActions.map((action, index) => (
+              <Link
+                key={index}
+                to={action.to}
+                className={`${action.color} text-white p-5 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg group relative overflow-hidden`}
+              >
+                <div className="absolute top-0 right-0 w-20 h-20 bg-white opacity-10 rounded-full -mr-10 -mt-10"></div>
+                {action.badge && (
+                  <span className="absolute top-2 right-2 bg-red-500 text-white rounded-full text-xs px-2 py-1 font-medium shadow-md">
+                    {action.badge}
+                  </span>
+                )}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:rotate-6 transition-transform">
+                    {action.icon}
+                  </div>
+                  <ArrowRightIcon size={18} className="opacity-80 group-hover:translate-x-2 transition-transform" />
+                </div>
+                <h3 className="font-bold text-lg mb-1">{action.title}</h3>
+                <p className="text-sm opacity-90">{action.description}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Two-column layout for activities and system status */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Recent Activities */}
+          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center">
+                <ActivityIcon size={24} className="mr-2 text-green-600" />
+                Recent Activities
+              </h2>
+              <Link to="/admin/activities" className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center">
+                View All <ArrowRightIcon size={14} className="ml-1" />
+              </Link>
+            </div>
+            {recentActivities.length > 0 ? (
+              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {recentActivities.map((activity) => (
+                  <div key={activity.id} className="flex items-start p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
+                    <div className={`${getActionColor(activity.action)} p-3 rounded-xl mr-4 flex-shrink-0 shadow-sm`}>
+                      {getActionIcon(activity.action)}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-800">
+                          {activity.user_email} <span className="text-gray-500">performed</span> {activity.action}
+                        </p>
+                        <span className="text-xs text-gray-500 group-hover:text-gray-700">{formatTimeAgo(activity.created_at)}</span>
+                      </div>
+                      {activity.details && (
+                        <p className="text-xs text-gray-600 mt-1 line-clamp-1">{JSON.stringify(activity.details)}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <ActivityIcon size={48} className="mx-auto text-gray-300 mb-4" />
+                <p className="text-gray-600 font-medium">No recent activities</p>
+                <p className="text-sm text-gray-500 mt-1">Activities will appear here as users interact with the platform</p>
+              </div>
+            )}
+          </div>
+
+          {/* System Status Panel */}
+          <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
+              <CheckCircleIcon size={24} className="mr-2 text-emerald-600" />
+              System Status
+            </h2>
             <div className="space-y-6">
-              {/* New Users */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-lg font-bold text-gray-800">New Users</h2>
-                  <div className="p-2 bg-green-100 text-green-600 rounded-full">
-                    <UserPlusIcon size={20} />
+              <div className="text-center">
+                <div className="relative inline-block">
+                  <div className="w-32 h-32 rounded-full border-8 border-emerald-200 flex items-center justify-center">
+                    <span className="text-3xl font-bold text-emerald-600">{stats.systemHealth}%</span>
                   </div>
+                  <div 
+                    className="absolute top-0 left-0 w-32 h-32 rounded-full border-8 border-emerald-600"
+                    style={{
+                      clipPath: `inset(0 0 ${100 - stats.systemHealth}% 0)`
+                    }}
+                  ></div>
                 </div>
-                <div className="space-y-4">
-                  {newUsers.length === 0 ? <div className="text-center py-4">
-                      <UsersIcon size={32} className="mx-auto text-gray-400 mb-2" />
-                      <p className="text-gray-500">No new users found</p>
-                    </div> : newUsers.map(user => <div key={user.id} className="flex items-center">
-                        <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                          {user.avatar ? <img src={user.avatar} alt={user.name} className="h-full w-full object-cover" /> : <span className="text-gray-600">
-                              {user.name.charAt(0)}
-                            </span>}
-                        </div>
-                        <div className="ml-3 flex-1">
-                          <Link to={`/admin/users/${user.id}`} className="font-medium text-gray-800 hover:text-purple-600">
-                            {user.name}
-                          </Link>
-                          <div className="text-xs text-gray-500">
-                            Joined: {user.joined}
-                          </div>
-                        </div>
-                        <div className="text-sm font-medium text-gray-600">
-                          {user.completed}{' '}
-                          <span className="text-xs">courses</span>
-                        </div>
-                      </div>)}
-                  <Link to="/admin/users" className="w-full block mt-2 text-center text-sm text-purple-600 hover:text-purple-800 font-medium">
-                    View all users
-                  </Link>
+                <p className="mt-2 text-sm font-medium text-gray-600">Overall Health</p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl shadow-inner">
+                  <div className="flex items-center">
+                    <CheckCircleIcon size={16} className="text-emerald-600 mr-2" />
+                    <span className="text-sm font-medium text-gray-800">Database</span>
+                  </div>
+                  <span className="text-sm font-bold text-emerald-600">Operational</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl shadow-inner">
+                  <div className="flex items-center">
+                    <CheckCircleIcon size={16} className="text-blue-600 mr-2" />
+                    <span className="text-sm font-medium text-gray-800">API Services</span>
+                  </div>
+                  <span className="text-sm font-bold text-blue-600">Online</span>
+                </div>
+                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl shadow-inner">
+                  <div className="flex items-center">
+                    <ClockIcon size={16} className="text-orange-600 mr-2" />
+                    <span className="text-sm font-medium text-gray-800">Pending Tasks</span>
+                  </div>
+                  <span className="text-sm font-bold text-orange-600">{stats.pendingFeedback}</span>
                 </div>
               </div>
 
-              {/* Notifications */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-lg font-bold text-gray-800">Alerts</h2>
-                  <div className="p-2 bg-red-100 text-red-600 rounded-full">
-                    <BellIcon size={20} />
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {notifications.length === 0 ? <div className="text-center py-4">
-                      <AlertCircleIcon size={32} className="mx-auto text-gray-400 mb-2" />
-                      <p className="text-gray-500">No alerts found</p>
-                    </div> : notifications.map(notification => <div key={notification.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
-                        <div className="flex items-start">
-                          <div className={`h-2 w-2 rounded-full mt-1.5 mr-2 ${notification.priority === 'high' ? 'bg-red-500' : notification.priority === 'medium' ? 'bg-yellow-500' : 'bg-blue-500'}`} />
-                          <div>
-                            <div className="text-sm text-gray-800">
-                              {notification.message}
-                            </div>
-                            <div className="flex items-center text-xs text-gray-500 mt-1">
-                              <CalendarIcon size={12} className="mr-1" />
-                              {notification.time}
-                            </div>
-                          </div>
-                        </div>
-                      </div>)}
-                  <Link to="/admin/notifications" className="w-full block mt-2 text-center text-sm text-purple-600 hover:text-purple-800 font-medium">
-                    View all notifications
-                  </Link>
-                </div>
-              </div>
-
-              {/* Quick Stats */}
-              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200">
-                <div className="flex justify-between items-start mb-4">
-                  <h2 className="text-lg font-bold text-gray-800">
-                    Platform Health
-                  </h2>
-                  <div className="p-2 bg-blue-100 text-blue-600 rounded-full">
-                    <BarChart2Icon size={20} />
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">System Status</span>
-                    <span className="flex items-center text-sm font-medium text-green-600">
-                      <CheckCircleIcon size={16} className="mr-1" />
-                      Operational
+              <div className="pt-4 border-t border-gray-200">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Quick Insights</h3>
+                <div className="space-y-3 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 flex items-center">
+                      <TrendingUpIcon size={12} className="mr-1 text-green-500" />
+                      New Users Today
                     </span>
+                    <span className="font-medium text-gray-800">--</span>
                   </div>
-                  <div className="h-px bg-gray-200"></div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">
-                      Database Usage
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 flex items-center">
+                      <Award size={12} className="mr-1 text-yellow-500" />
+                      Badges Awarded
                     </span>
-                    <span className="text-sm font-medium text-gray-800">
-                      42%
+                    <span className="font-medium text-gray-800">--</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 flex items-center">
+                      <Target size={12} className="mr-1 text-orange-500" />
+                      Avg Session Time
                     </span>
+                    <span className="font-medium text-gray-800">-- min</span>
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-blue-600 h-2 rounded-full" style={{
-                  width: '42%'
-                }}></div>
-                  </div>
-                  <div className="h-px bg-gray-200"></div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Storage Usage</span>
-                    <span className="text-sm font-medium text-gray-800">
-                      28%
-                    </span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div className="bg-purple-600 h-2 rounded-full" style={{
-                  width: '28%'
-                }}></div>
-                  </div>
-                  <Link to="/admin/settings" className="w-full block mt-3 text-center text-sm text-purple-600 hover:text-purple-800 font-medium">
-                    View system settings
-                  </Link>
                 </div>
               </div>
             </div>
           </div>
-        </>}
-    </DashboardLayout>;
+        </div>
+
+        {/* User Growth Chart */}
+        <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
+          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
+            <UsersIcon size={24} className="mr-2 text-indigo-600" />
+            User Growth
+          </h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData.userGrowth}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                <YAxis tick={{ fontSize: 12 }} />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'white',
+                    border: '1px solid #e5e5e5',
+                    borderRadius: '8px',
+                    padding: '10px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                  }}
+                />
+                <Legend />
+                <Line 
+                  type="monotone" 
+                  dataKey="users" 
+                  stroke="#6366f1" 
+                  strokeWidth={2}
+                  dot={{ fill: '#6366f1', strokeWidth: 2 }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
 };

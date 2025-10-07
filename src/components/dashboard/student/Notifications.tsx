@@ -3,6 +3,7 @@ import { DashboardLayout } from '../../layout/DashboardLayout';
 import { BellIcon, CheckIcon, TrashIcon, CalendarIcon, AwardIcon, BookOpenIcon, InfoIcon, AlertCircleIcon, CheckCircleIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { createAuditLog } from '../../../lib/supabase-utils';
+import { useAuth } from '../../../contexts/AuthContext';
 interface Notification {
   id: string;
   title: string;
@@ -13,6 +14,7 @@ interface Notification {
   created_at: string;
 }
 export const StudentNotifications: React.FC = () => {
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'unread'>('all');

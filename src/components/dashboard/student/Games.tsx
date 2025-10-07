@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 import { GamepadIcon, TrophyIcon, ClockIcon, SearchIcon, FilterIcon, PlayIcon, LockIcon, StarIcon } from 'lucide-react';
 interface Game {
   id: string;
@@ -209,9 +210,7 @@ export const StudentGames: React.FC = () => {
           </div>
         </div>
       </div>
-      {loading ? <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div> : games.length === 0 ? <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+      {loading ? <div className="py-6 text-center text-sm text-gray-600">Loading games…</div> : games.length === 0 ? <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
           <GamepadIcon size={48} className="mx-auto text-gray-400 mb-4" />
           <h3 className="text-xl font-medium text-gray-800 mb-2">
             No games found
@@ -269,11 +268,11 @@ export const StudentGames: React.FC = () => {
                       Last played: {formatLastPlayed(game.last_played)}
                     </span>}
                   <button onClick={() => playGame(game.id, game.is_unlocked)} className={`px-4 py-2 rounded-lg text-white flex items-center ${game.is_unlocked ? 'bg-blue-600 hover:bg-blue-700' : 'bg-purple-600 hover:bg-purple-700'}`}>
-                    {game.is_unlocked ? <>
+                      {game.is_unlocked ? <>
                         <PlayIcon size={16} className="mr-1" />
                         Play
                       </> : <>
-                        <div size={16} className="mr-1" />
+                        <StarIcon size={16} className="mr-1" />
                         Unlock
                       </>}
                   </button>

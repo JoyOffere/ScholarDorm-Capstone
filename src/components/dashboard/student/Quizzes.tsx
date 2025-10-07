@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 import { BookOpenIcon, ClipboardListIcon, ClockIcon, TrophyIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon } from 'lucide-react';
 interface Quiz {
   id: string;
@@ -22,6 +23,7 @@ interface Quiz {
   status?: 'completed' | 'in_progress' | 'not_started';
 }
 export const StudentQuizzes: React.FC = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
@@ -114,10 +116,10 @@ export const StudentQuizzes: React.FC = () => {
         return {
           ...quiz,
           question_count: quiz.quiz_questions?.length || 0,
-          course_title: quiz.lesson?.course_id ? courseTitleMap[quiz.lesson.course_id] : 'Unknown Course',
-          lesson_title: quiz.lesson?.title || 'Unknown Lesson',
-          user_attempts: attempts?.count || 0,
-          highest_score: attempts?.highestScore || 0,
+          course_title: quiz.lesson?.course_id ? courseTitleMap[quiz.lesson.course_id] ?? 'Unknown Course' : 'Unknown Course',
+          lesson_title: quiz.lesson?.title ?? 'Unknown Lesson',
+          user_attempts: attempts?.count ?? 0,
+          highest_score: attempts?.highestScore ?? 0,
           status
         };
       }) || [];
@@ -160,9 +162,7 @@ export const StudentQuizzes: React.FC = () => {
           </div>
         </div>
       </div>
-      {loading ? <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div> : quizzes.length === 0 ? <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+      {loading ? <div className="py-6 text-center text-sm text-gray-600">Loading quizzes…</div> : quizzes.length === 0 ? <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
           <ClipboardListIcon size={48} className="mx-auto text-gray-400 mb-4" />
           <h3 className="text-xl font-medium text-gray-800 mb-2">
             No quizzes found
@@ -215,8 +215,8 @@ export const StudentQuizzes: React.FC = () => {
                       <div className="text-sm font-medium">
                         Your best score:
                       </div>
-                      <div className={`text-lg font-bold ${quiz.highest_score >= quiz.passing_score ? 'text-green-600' : 'text-red-600'}`}>
-                        {quiz.highest_score}%
+                      <div className={`text-lg font-bold ${(quiz.highest_score ?? 0) >= quiz.passing_score ? 'text-green-600' : 'text-red-600'}`}>
+                        {quiz.highest_score ?? 0}%
                       </div>
                     </div>
                     <button onClick={() => startQuiz(quiz.id)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
@@ -224,11 +224,11 @@ export const StudentQuizzes: React.FC = () => {
                       <ArrowRightIcon size={16} className="ml-1" />
                     </button>
                   </div> : <div className="flex justify-between items-center">
-                    {quiz.user_attempts > 0 && <div className="text-sm text-gray-600">
-                        Attempts: {quiz.user_attempts}
+                    {(quiz.user_attempts ?? 0) > 0 && <div className="text-sm text-gray-600">
+                        Attempts: {quiz.user_attempts ?? 0}
                         {quiz.max_attempts ? `/${quiz.max_attempts}` : ''}
                       </div>}
-                    <button onClick={() => startQuiz(quiz.id)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center" disabled={quiz.max_attempts !== null && quiz.user_attempts >= quiz.max_attempts}>
+                    <button onClick={() => startQuiz(quiz.id)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center" disabled={quiz.max_attempts !== null && (quiz.user_attempts ?? 0) >= quiz.max_attempts}>
                       {quiz.status === 'in_progress' ? 'Continue' : 'Start Quiz'}
                       <ArrowRightIcon size={16} className="ml-1" />
                     </button>

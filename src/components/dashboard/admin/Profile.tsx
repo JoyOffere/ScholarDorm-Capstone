@@ -3,7 +3,9 @@ import { DashboardLayout } from '../../layout/DashboardLayout';
 import { UserIcon, EditIcon, SaveIcon, XIcon, CameraIcon, ShieldIcon, ClockIcon, ActivityIcon, KeyIcon, MailIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { createAuditLog } from '../../../lib/supabase-utils';
+import { useAuth } from '../../../contexts/AuthContext';
 export const AdminProfile: React.FC = () => {
+  const { user: authUser } = useAuth();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
@@ -28,18 +30,12 @@ export const AdminProfile: React.FC = () => {
   const fetchUserData = async () => {
     try {
       setLoading(true);
-      // Get current user
-      const {
-        data: {
-          user
-        }
-      } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not found');
+      if (!authUser) throw new Error('User not found');
       // Get user profile
       const {
         data: profile,
         error: profileError
-      } = await supabase.from('users').select('*').eq('id', user.id).single();
+      } = await supabase.from('users').select('*').eq('id', authUser.id).single();
       if (profileError) throw profileError;
       // Get admin stats
       const {
@@ -47,7 +43,7 @@ export const AdminProfile: React.FC = () => {
       } = await supabase.from('audit_logs').select('id', {
         count: 'exact',
         head: true
-      }).eq('user_id', user.id);
+      }).eq('user_id', authUser.id);
       const {
         count: usersCount
       } = await supabase.from('users').select('id', {
@@ -59,7 +55,7 @@ export const AdminProfile: React.FC = () => {
       } = await supabase.from('courses').select('id', {
         count: 'exact',
         head: true
-      }).eq('created_by', user.id);
+      }).eq('created_by', authUser.id);
       // Set state
       setUser(profile);
       setFormData({
@@ -96,6 +92,7 @@ export const AdminProfile: React.FC = () => {
   const handleSaveProfile = async () => {
     try {
       setLoading(true);
+      if (!authUser) throw new Error('User not authenticated');
       const {
         data,
         error
@@ -105,10 +102,10 @@ export const AdminProfile: React.FC = () => {
         phone: formData.phone,
         department: formData.department,
         updated_at: new Date().toISOString()
-      }).eq('id', user.id).select();
+      }).eq('id', authUser.id).select();
       if (error) throw error;
       // Create audit log
-      await createAuditLog(user.id, 'profile_update', {
+      await createAuditLog(authUser.id, 'profile_update', {
         fields_updated: Object.keys(formData),
         admin_profile: true
       });

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { SlideContent } from './SlideContent';
+// import { SlideContent } from './SlideContent';
 import { PauseIcon, PlayIcon, ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 const slides = [{
   title: 'Empowering Students with Hearing Impairments',

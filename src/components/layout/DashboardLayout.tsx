@@ -24,7 +24,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     unreadNotifications: 0
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
+    // Force loading to false after 5 seconds to prevent infinite loading
+    const loadingTimeout = setTimeout(() => {
+      console.log('Force setting loading to false after timeout');
+      setLoading(false);
+    }, 5000);
+
     const fetchUserProfile = async () => {
       try {
         const {
@@ -50,8 +57,13 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             unreadNotifications: count || 0
           });
         }
+        clearTimeout(loadingTimeout);
       } catch (error) {
         console.error('Error fetching user profile:', error);
+      } finally {
+        console.log('Setting loading to false');
+        setLoading(false);
+        clearTimeout(loadingTimeout);
       }
     };
     fetchUserProfile();
@@ -59,6 +71,11 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  // Do not block rendering while fetching profile. Render layout immediately
+  // so navigation is fast; show a small inline loading indicator near the
+  // header/profile area while the profile loads.
+
   return <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Sidebar - pass open state and toggle function */}
       <Sidebar role={role} isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef, Component } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { SearchIcon, BellIcon, UserIcon, HelpCircleIcon, ChevronDownIcon, LogOutIcon, SettingsIcon, MoonIcon, SunIcon, BookIcon, GraduationCapIcon, GamepadIcon, AwardIcon, XIcon, MenuIcon } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { createAuditLog } from '../../lib/supabase-utils';
 interface NavbarProps {
   role: 'student' | 'admin';
   toggleSidebar: () => void;
@@ -47,22 +47,13 @@ export const Navbar: React.FC<NavbarProps> = ({
     // In a real implementation, you would update the user's settings in the database
     // and apply the dark mode theme to the entire application
   };
+  const auth = useAuth();
   const handleSignOut = async () => {
     try {
-      const {
-        data: {
-          user
-        }
-      } = await supabase.auth.getUser();
-      if (user) {
-        await createAuditLog(user.id, 'logout', {
-          method: 'navbar_button'
-        });
-      }
-      await supabase.auth.signOut();
-      localStorage.removeItem('userRole');
+      console.debug('Navbar: calling auth.signOut');
+      await auth.signOut();
       setShowUserMenu(false);
-      navigate('/login');
+      navigate('/'); // Navigate to login page after signout for faster transition
     } catch (error) {
       console.error('Error signing out:', error);
     }
@@ -100,10 +91,10 @@ export const Navbar: React.FC<NavbarProps> = ({
         users = usersData || [];
       }
       // Combine results
-      setSearchResults([...(courses || []).map(course => ({
+      setSearchResults([...(courses || []).map((course: any) => ({
         ...course,
         type: 'course'
-      })), ...(announcements || []).map(announcement => ({
+      })), ...(announcements || []).map((announcement: any) => ({
         ...announcement,
         type: 'announcement'
       })), ...(users || []).map(user => ({

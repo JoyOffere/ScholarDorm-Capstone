@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, EyeIcon, ClipboardListIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, CheckCircleIcon, XCircleIcon, BookOpenIcon, CalendarIcon, ClockIcon, ListIcon, FileTextIcon } from 'lucide-react';
+import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, EyeIcon, ClipboardListIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, CheckCircleIcon, XCircleIcon, BookOpenIcon, CalendarIcon, ClockIcon, UsersIcon, BarChart3Icon, VideoIcon, SettingsIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { RSLService, RSLAccessibilitySettings } from '../../../lib/rsl-service';
+import { useAuth } from '../../../contexts/AuthContext';
+
 interface Quiz {
   id: string;
   title: string;
@@ -11,12 +14,13 @@ interface Quiz {
   course_title?: string;
   passing_score: number;
   question_count?: number;
-  created_at: string;
   updated_at: string;
   is_published: boolean;
+  created_at?: string;
 }
 export const AdminQuizManagement: React.FC = () => {
-  const navigate = useNavigate();
+  const _ = useNavigate();
+  const { user } = useAuth();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,10 +42,51 @@ export const AdminQuizManagement: React.FC = () => {
     passing_score: 0,
     is_published: false
   });
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createFormData, setCreateFormData] = useState({
+    title: '',
+    description: '',
+    lesson_id: '',
+    passing_score: 70,
+    is_published: false
+  });
+  const [createQuestions, setCreateQuestions] = useState<{
+    id: string;
+    question: string;
+    question_type: 'multiple_choice' | 'true_false' | 'short_answer' | 'essay';
+    options: string[];
+    correct_answer: number[];
+    explanation: string;
+    points: number;
+    difficulty: 'easy' | 'medium' | 'hard';
+  }[]>([]);
+  const [lessons, setLessons] = useState<{
+    id: string;
+    title: string;
+    course_title: string;
+  }[]>([]);
+  const [rslSettings, setRslSettings] = useState<RSLAccessibilitySettings>({
+    show_captions: true,
+    video_speed: 1.0,
+    high_contrast: false,
+    large_text: false,
+    auto_repeat: false,
+    sign_descriptions: true,
+  });
   useEffect(() => {
     fetchQuizzes();
     fetchCourses();
-  }, [courseFilter, statusFilter]);
+    fetchLessons();
+    loadRSLSettings();
+  }, []);
+  const loadRSLSettings = async () => {
+    try {
+      const settings = await RSLService.getAccessibilitySettings(user?.id || '');
+      setRslSettings(settings);
+    } catch (error) {
+      console.error('Error loading RSL settings:', error);
+    }
+  };
   const fetchQuizzes = async () => {
     try {
       setLoading(true);
@@ -106,6 +151,30 @@ export const AdminQuizManagement: React.FC = () => {
       setCourses(data || []);
     } catch (error) {
       console.error('Error fetching courses:', error);
+    }
+  };
+  const fetchLessons = async () => {
+    try {
+      const {
+        data,
+        error
+      } = await supabase.from('lessons').select(`
+          id,
+          title,
+          course_id,
+          courses(title)
+        `).order('title', {
+        ascending: true
+      });
+      if (error) throw error;
+      const lessonsWithCourses = (data || []).map((lesson: any) => ({
+        id: lesson.id,
+        title: lesson.title,
+        course_title: lesson.courses?.title || 'Unknown Course'
+      }));
+      setLessons(lessonsWithCourses);
+    } catch (error) {
+      console.error('Error fetching lessons:', error);
     }
   };
   const handleSearch = (e: React.FormEvent) => {
@@ -246,6 +315,113 @@ export const AdminQuizManagement: React.FC = () => {
       [name]: checked
     });
   };
+  const handleCreateInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const {
+      name,
+      value
+    } = e.target;
+    setCreateFormData({
+      ...createFormData,
+      [name]: name === 'passing_score' ? parseInt(value) : value
+    });
+  };
+  const handleCreateCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const {
+      name,
+      checked
+    } = e.target;
+    setCreateFormData({
+      ...createFormData,
+      [name]: checked
+    });
+  };
+  const handleCreateSubmit = async () => {
+    if (!createFormData.title || !createFormData.lesson_id) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    // Validate questions
+    for (let i = 0; i < createQuestions.length; i++) {
+      const question = createQuestions[i];
+      if (!question.question.trim()) {
+        alert(`Question ${i + 1} is missing text`);
+        return;
+      }
+      if ((question.question_type === 'multiple_choice' || question.question_type === 'true_false') && question.correct_answer.length === 0) {
+        alert(`Question ${i + 1} needs at least one correct answer selected`);
+        return;
+      }
+    }
+
+    try {
+      setLoading(true);
+
+      // Create the quiz first
+      const {
+        data: quizData,
+        error: quizError
+      } = await supabase.from('quizzes').insert({
+        title: createFormData.title,
+        description: createFormData.description,
+        lesson_id: createFormData.lesson_id,
+        passing_score: createFormData.passing_score,
+        is_published: createFormData.is_published,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }).select().single();
+
+      if (quizError) throw quizError;
+
+      // Create questions if any
+      if (createQuestions.length > 0) {
+        const questionsToInsert = createQuestions.map((question, index) => ({
+          quiz_id: quizData.id,
+          question: question.question,
+          question_type: question.question_type,
+          options: question.question_type === 'multiple_choice' || question.question_type === 'true_false'
+            ? question.options
+            : null,
+          correct_answer: question.correct_answer.length > 0
+            ? question.correct_answer
+            : null,
+          explanation: question.explanation || null,
+          points: question.points,
+          difficulty: question.difficulty,
+          order_index: index
+        }));
+
+        const { error: questionsError } = await supabase
+          .from('quiz_questions')
+          .insert(questionsToInsert);
+
+        if (questionsError) throw questionsError;
+      }
+
+      // Add to local state
+      setQuizzes([{
+        ...quizData,
+        course_title: lessons.find(l => l.id === createFormData.lesson_id)?.course_title || 'Unknown Course',
+        question_count: createQuestions.length
+      }, ...quizzes]);
+
+      // Reset form and close modal
+      setCreateFormData({
+        title: '',
+        description: '',
+        lesson_id: '',
+        passing_score: 70,
+        is_published: false
+      });
+      setCreateQuestions([]);
+      setShowCreateModal(false);
+    } catch (error) {
+      console.error('Error creating quiz:', error);
+      alert('Failed to create quiz');
+    } finally {
+      setLoading(false);
+    }
+  };
   return <DashboardLayout title="Quiz Management" role="admin">
       {/* Filters and actions */}
       <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200 mb-6">
@@ -266,10 +442,7 @@ export const AdminQuizManagement: React.FC = () => {
               {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
             </button>
             {/* Create Quiz button */}
-            <button className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500" onClick={() => {
-            // In a real implementation, this would navigate to a quiz creation page
-            alert('This would navigate to a quiz creation page');
-          }}>
+            <button className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500" onClick={() => setShowCreateModal(true)}>
               <PlusIcon size={16} className="mr-2" />
               New Quiz
             </button>
@@ -362,10 +535,7 @@ export const AdminQuizManagement: React.FC = () => {
                       </p>
                       {searchTerm || courseFilter || statusFilter !== null ? <button onClick={resetFilters} className="mt-4 text-purple-600 hover:text-purple-800 font-medium">
                           Reset all filters
-                        </button> : <button className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => {
-                    // In a real implementation, this would navigate to a quiz creation page
-                    alert('This would navigate to a quiz creation page');
-                  }}>
+                        </button> : <button className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => setShowCreateModal(true)}>
                           <PlusIcon size={16} className="mr-2" />
                           Create Quiz
                         </button>}
@@ -483,10 +653,7 @@ export const AdminQuizManagement: React.FC = () => {
             </p>
             {searchTerm || courseFilter || statusFilter !== null ? <button onClick={resetFilters} className="w-full text-purple-600 hover:text-purple-800 font-medium">
                 Reset all filters
-              </button> : <button className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => {
-          // In a real implementation, this would navigate to a quiz creation page
-          alert('This would navigate to a quiz creation page');
-        }}>
+              </button> : <button className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => setShowCreateModal(true)}>
                 <PlusIcon size={16} className="mr-2" />
                 Create Quiz
               </button>}
@@ -628,7 +795,7 @@ export const AdminQuizManagement: React.FC = () => {
                       <div className="flex items-center">
                         <CalendarIcon size={14} className="mr-1" />
                         Created:{' '}
-                        {new Date(selectedQuiz.created_at).toLocaleDateString()}
+                        {selectedQuiz.created_at ? new Date(selectedQuiz.created_at).toLocaleDateString() : 'Unknown'}
                       </div>
                       <div className="flex items-center">
                         <ClockIcon size={14} className="mr-1" />
@@ -702,5 +869,688 @@ export const AdminQuizManagement: React.FC = () => {
             </div>
           </div>
         </div>}
+
+      {/* Create Quiz Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div
+                className={`absolute inset-0 ${
+                  rslSettings.high_contrast
+                    ? "bg-black opacity-90"
+                    : "bg-gray-500 opacity-75"
+                }`}
+              ></div>
+            </div>
+            <span
+              className="hidden sm:inline-block sm:align-middle sm:h-screen"
+              aria-hidden="true"
+            >
+              &#8203;
+            </span>
+            <div
+              className={`inline-block align-bottom ${
+                rslSettings.high_contrast ? "bg-black border-white" : "bg-white"
+              } rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border`}
+              style={{
+                maxWidth: "90%",
+                width: "600px",
+              }}
+            >
+              {/* Modal Header */}
+              <div
+                className={`${
+                  rslSettings.high_contrast
+                    ? "bg-gray-800 border-white"
+                    : "bg-purple-50 border-purple-100"
+                } px-4 py-3 border-b flex justify-between items-center`}
+              >
+                <div className="flex items-center space-x-2">
+                  <VideoIcon
+                    size={20}
+                    className={
+                      rslSettings.high_contrast
+                        ? "text-white"
+                        : "text-purple-600"
+                    }
+                  />
+                  <h3
+                    className={`${
+                      rslSettings.large_text ? "text-xl" : "text-lg"
+                    } font-medium ${
+                      rslSettings.high_contrast
+                        ? "text-white"
+                        : "text-purple-900"
+                    }`}
+                  >
+                    Create New Quiz
+                  </h3>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() =>
+                      setRslSettings((prev) => ({
+                        ...prev,
+                        high_contrast: !prev.high_contrast,
+                      }))
+                    }
+                    className={`p-1 rounded ${
+                      rslSettings.high_contrast
+                        ? "bg-white text-black"
+                        : "bg-gray-200 text-gray-700"
+                    } hover:opacity-80`}
+                    title="Toggle High Contrast"
+                  >
+                    <EyeIcon size={16} />
+                  </button>
+                  <button
+                    onClick={() =>
+                      setRslSettings((prev) => ({
+                        ...prev,
+                        large_text: !prev.large_text,
+                      }))
+                    }
+                    className={`p-1 rounded ${
+                      rslSettings.high_contrast
+                        ? "bg-white text-black"
+                        : "bg-gray-200 text-gray-700"
+                    } hover:opacity-80`}
+                    title="Toggle Large Text"
+                  >
+                    <SettingsIcon size={16} />
+                  </button>
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className={`${
+                      rslSettings.high_contrast
+                        ? "text-white hover:text-gray-300"
+                        : "text-purple-500 hover:text-purple-700"
+                    } focus:outline-none`}
+                  >
+                    <XIcon size={20} />
+                  </button>
+                </div>
+              </div>
+              {/* Modal Content */}
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <VideoIcon
+                        size={16}
+                        className={
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-500"
+                        }
+                      />
+                      <label
+                        htmlFor="create-title"
+                        className={`block ${
+                          rslSettings.large_text ? "text-base" : "text-sm"
+                        } font-medium ${
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        Title *
+                      </label>
+                    </div>
+                    <input
+                      type="text"
+                      name="title"
+                      id="create-title"
+                      value={createFormData.title}
+                      onChange={handleCreateInputChange}
+                      className={`mt-1 block w-full border ${
+                        rslSettings.high_contrast
+                          ? "border-white bg-gray-800 text-white"
+                          : "border-gray-300 bg-white"
+                      } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                        rslSettings.large_text ? "text-base" : "sm:text-sm"
+                      }`}
+                      placeholder="Enter quiz title"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <VideoIcon
+                        size={16}
+                        className={
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-500"
+                        }
+                      />
+                      <label
+                        htmlFor="create-description"
+                        className={`block ${
+                          rslSettings.large_text ? "text-base" : "text-sm"
+                        } font-medium ${
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        Description
+                      </label>
+                    </div>
+                    <textarea
+                      name="description"
+                      id="create-description"
+                      rows={3}
+                      value={createFormData.description}
+                      onChange={handleCreateInputChange}
+                      className={`mt-1 block w-full border ${
+                        rslSettings.high_contrast
+                          ? "border-white bg-gray-800 text-white"
+                          : "border-gray-300 bg-white"
+                      } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                        rslSettings.large_text ? "text-base" : "sm:text-sm"
+                      }`}
+                      placeholder="Enter quiz description"
+                    />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <VideoIcon
+                        size={16}
+                        className={
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-500"
+                        }
+                      />
+                      <label
+                        htmlFor="create-lesson"
+                        className={`block ${
+                          rslSettings.large_text ? "text-base" : "text-sm"
+                        } font-medium ${
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        Lesson *
+                      </label>
+                    </div>
+                    <select
+                      name="lesson_id"
+                      id="create-lesson"
+                      value={createFormData.lesson_id}
+                      onChange={handleCreateInputChange}
+                      className={`mt-1 block w-full border ${
+                        rslSettings.high_contrast
+                          ? "border-white bg-gray-800 text-white"
+                          : "border-gray-300 bg-white"
+                      } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                        rslSettings.large_text ? "text-base" : "sm:text-sm"
+                      }`}
+                    >
+                      <option value="">Select a lesson</option>
+                      {lessons.map((lesson) => (
+                        <option key={lesson.id} value={lesson.id}>
+                          {lesson.title} ({lesson.course_title})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <VideoIcon
+                        size={16}
+                        className={
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-500"
+                        }
+                      />
+                      <label
+                        htmlFor="create-passing-score"
+                        className={`block ${
+                          rslSettings.large_text ? "text-base" : "text-sm"
+                        } font-medium ${
+                          rslSettings.high_contrast
+                            ? "text-white"
+                            : "text-gray-700"
+                        }`}
+                      >
+                        Passing Score (%)
+                      </label>
+                    </div>
+                    <input
+                      type="number"
+                      name="passing_score"
+                      id="create-passing-score"
+                      min="0"
+                      max="100"
+                      value={createFormData.passing_score}
+                      onChange={handleCreateInputChange}
+                      className={`mt-1 block w-full border ${
+                        rslSettings.high_contrast
+                          ? "border-white bg-gray-800 text-white"
+                          : "border-gray-300 bg-white"
+                      } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                        rslSettings.large_text ? "text-base" : "sm:text-sm"
+                      }`}
+                    />
+                  </div>
+                  {/* Questions Section */}
+                  <div className="border-t pt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className={`${
+                        rslSettings.large_text ? "text-lg" : "text-base"
+                      } font-medium ${
+                        rslSettings.high_contrast
+                          ? "text-white"
+                          : "text-gray-900"
+                      }`}>
+                        Questions
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newQuestion = {
+                            id: Date.now().toString(),
+                            question: '',
+                            question_type: 'multiple_choice' as const,
+                            options: ['', ''],
+                            correct_answer: [],
+                            explanation: '',
+                            points: 1,
+                            difficulty: 'medium' as const,
+                          };
+                          setCreateQuestions([...createQuestions, newQuestion]);
+                        }}
+                        className={`inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded-md ${
+                          rslSettings.high_contrast
+                            ? "text-black bg-white hover:bg-gray-200"
+                            : "text-white bg-green-600 hover:bg-green-700"
+                        } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500`}
+                      >
+                        <PlusIcon size={16} className="mr-1" />
+                        Add Question
+                      </button>
+                    </div>
+
+                    {createQuestions.length === 0 ? (
+                      <div className={`text-center py-8 border-2 border-dashed rounded-lg ${
+                        rslSettings.high_contrast
+                          ? "border-white text-white"
+                          : "border-gray-300 text-gray-500"
+                      }`}>
+                        <ClipboardListIcon size={48} className="mx-auto mb-4 opacity-50" />
+                        <p className={rslSettings.large_text ? "text-base" : "text-sm"}>
+                          No questions added yet. Click "Add Question" to get started.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {createQuestions.map((question, index) => (
+                          <div key={question.id} className={`border rounded-lg p-4 ${
+                            rslSettings.high_contrast
+                              ? "border-white bg-gray-800"
+                              : "border-gray-200 bg-gray-50"
+                          }`}>
+                            <div className="flex items-center justify-between mb-3">
+                              <h5 className={`font-medium ${
+                                rslSettings.high_contrast
+                                  ? "text-white"
+                                  : "text-gray-900"
+                              }`}>
+                                Question {index + 1}
+                              </h5>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCreateQuestions(createQuestions.filter(q => q.id !== question.id));
+                                }}
+                                className={`p-1 rounded ${
+                                  rslSettings.high_contrast
+                                    ? "text-white hover:bg-gray-700"
+                                    : "text-red-600 hover:bg-red-50"
+                                }`}
+                              >
+                                <XIcon size={16} />
+                              </button>
+                            </div>
+
+                            <div className="space-y-3">
+                              <div>
+                                <label className={`block ${
+                                  rslSettings.large_text ? "text-sm" : "text-xs"
+                                } font-medium ${
+                                  rslSettings.high_contrast
+                                    ? "text-white"
+                                    : "text-gray-700"
+                                } mb-1`}>
+                                  Question Text *
+                                </label>
+                                <textarea
+                                  value={question.question}
+                                  onChange={(e) => {
+                                    const updated = [...createQuestions];
+                                    updated[index].question = e.target.value;
+                                    setCreateQuestions(updated);
+                                  }}
+                                  rows={2}
+                                  className={`block w-full border ${
+                                    rslSettings.high_contrast
+                                      ? "border-white bg-gray-700 text-white"
+                                      : "border-gray-300 bg-white"
+                                  } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                                    rslSettings.large_text ? "text-base" : "text-sm"
+                                  }`}
+                                  placeholder="Enter your question"
+                                />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className={`block ${
+                                    rslSettings.large_text ? "text-sm" : "text-xs"
+                                  } font-medium ${
+                                    rslSettings.high_contrast
+                                      ? "text-white"
+                                      : "text-gray-700"
+                                  } mb-1`}>
+                                    Question Type
+                                  </label>
+                                  <select
+                                    value={question.question_type}
+                                    onChange={(e) => {
+                                      const updated = [...createQuestions];
+                                      updated[index].question_type = e.target.value as any;
+                                      // Reset options based on question type
+                                      if (e.target.value === 'multiple_choice') {
+                                        updated[index].options = ['', ''];
+                                        updated[index].correct_answer = [];
+                                      } else if (e.target.value === 'true_false') {
+                                        updated[index].options = ['True', 'False'];
+                                        updated[index].correct_answer = [];
+                                      } else {
+                                        updated[index].options = [];
+                                        updated[index].correct_answer = [];
+                                      }
+                                      setCreateQuestions(updated);
+                                    }}
+                                    className={`block w-full border ${
+                                      rslSettings.high_contrast
+                                        ? "border-white bg-gray-700 text-white"
+                                        : "border-gray-300 bg-white"
+                                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                                      rslSettings.large_text ? "text-base" : "text-sm"
+                                    }`}
+                                  >
+                                    <option value="multiple_choice">Multiple Choice</option>
+                                    <option value="true_false">True/False</option>
+                                    <option value="short_answer">Short Answer</option>
+                                    <option value="essay">Essay</option>
+                                  </select>
+                                </div>
+
+                                <div>
+                                  <label className={`block ${
+                                    rslSettings.large_text ? "text-sm" : "text-xs"
+                                  } font-medium ${
+                                    rslSettings.high_contrast
+                                      ? "text-white"
+                                      : "text-gray-700"
+                                  } mb-1`}>
+                                    Difficulty
+                                  </label>
+                                  <select
+                                    value={question.difficulty}
+                                    onChange={(e) => {
+                                      const updated = [...createQuestions];
+                                      updated[index].difficulty = e.target.value as any;
+                                      setCreateQuestions(updated);
+                                    }}
+                                    className={`block w-full border ${
+                                      rslSettings.high_contrast
+                                        ? "border-white bg-gray-700 text-white"
+                                        : "border-gray-300 bg-white"
+                                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                                      rslSettings.large_text ? "text-base" : "text-sm"
+                                    }`}
+                                  >
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              {(question.question_type === 'multiple_choice' || question.question_type === 'true_false') && (
+                                <div>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <label className={`block ${
+                                      rslSettings.large_text ? "text-sm" : "text-xs"
+                                    } font-medium ${
+                                      rslSettings.high_contrast
+                                        ? "text-white"
+                                        : "text-gray-700"
+                                    }`}>
+                                      Answer Options
+                                    </label>
+                                    {question.question_type === 'multiple_choice' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...createQuestions];
+                                          updated[index].options.push('');
+                                          setCreateQuestions(updated);
+                                        }}
+                                        className={`inline-flex items-center px-2 py-1 text-xs border border-transparent rounded ${
+                                          rslSettings.high_contrast
+                                            ? "text-black bg-white hover:bg-gray-200"
+                                            : "text-white bg-blue-600 hover:bg-blue-700"
+                                        }`}
+                                      >
+                                        <PlusIcon size={12} className="mr-1" />
+                                        Add Option
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="space-y-2">
+                                    {question.options.map((option, optionIndex) => (
+                                      <div key={optionIndex} className="flex items-center space-x-2">
+                                        <input
+                                          type={question.question_type === 'multiple_choice' ? 'checkbox' : 'radio'}
+                                          name={`question-${index}-correct`}
+                                          checked={question.correct_answer.includes(optionIndex)}
+                                          onChange={(e) => {
+                                            const updated = [...createQuestions];
+                                            if (question.question_type === 'multiple_choice') {
+                                              if (e.target.checked) {
+                                                updated[index].correct_answer.push(optionIndex);
+                                              } else {
+                                                updated[index].correct_answer = updated[index].correct_answer.filter(i => i !== optionIndex);
+                                              }
+                                            } else {
+                                              updated[index].correct_answer = [optionIndex];
+                                            }
+                                            setCreateQuestions(updated);
+                                          }}
+                                          className={`h-4 w-4 ${
+                                            rslSettings.high_contrast
+                                              ? "text-white"
+                                              : "text-purple-600"
+                                          } focus:ring-purple-500 border-gray-300 rounded`}
+                                        />
+                                        <input
+                                          type="text"
+                                          value={option}
+                                          onChange={(e) => {
+                                            const updated = [...createQuestions];
+                                            updated[index].options[optionIndex] = e.target.value;
+                                            setCreateQuestions(updated);
+                                          }}
+                                          className={`flex-1 border ${
+                                            rslSettings.high_contrast
+                                              ? "border-white bg-gray-700 text-white"
+                                              : "border-gray-300 bg-white"
+                                          } rounded-md shadow-sm py-1 px-2 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                                            rslSettings.large_text ? "text-base" : "text-sm"
+                                          }`}
+                                          placeholder={`Option ${optionIndex + 1}`}
+                                        />
+                                        {question.question_type === 'multiple_choice' && question.options.length > 2 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const updated = [...createQuestions];
+                                              updated[index].options.splice(optionIndex, 1);
+                                              updated[index].correct_answer = updated[index].correct_answer
+                                                .filter(i => i !== optionIndex)
+                                                .map(i => i > optionIndex ? i - 1 : i);
+                                              setCreateQuestions(updated);
+                                            }}
+                                            className={`p-1 rounded ${
+                                              rslSettings.high_contrast
+                                                ? "text-white hover:bg-gray-700"
+                                                : "text-red-600 hover:bg-red-50"
+                                            }`}
+                                          >
+                                            <XIcon size={14} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className={`block ${
+                                    rslSettings.large_text ? "text-sm" : "text-xs"
+                                  } font-medium ${
+                                    rslSettings.high_contrast
+                                      ? "text-white"
+                                      : "text-gray-700"
+                                  } mb-1`}>
+                                    Points
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={question.points}
+                                    onChange={(e) => {
+                                      const updated = [...createQuestions];
+                                      updated[index].points = parseInt(e.target.value) || 1;
+                                      setCreateQuestions(updated);
+                                    }}
+                                    className={`block w-full border ${
+                                      rslSettings.high_contrast
+                                        ? "border-white bg-gray-700 text-white"
+                                        : "border-gray-300 bg-white"
+                                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                                      rslSettings.large_text ? "text-base" : "text-sm"
+                                    }`}
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className={`block ${
+                                    rslSettings.large_text ? "text-sm" : "text-xs"
+                                  } font-medium ${
+                                    rslSettings.high_contrast
+                                      ? "text-white"
+                                      : "text-gray-700"
+                                  } mb-1`}>
+                                    Explanation
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={question.explanation}
+                                    onChange={(e) => {
+                                      const updated = [...createQuestions];
+                                      updated[index].explanation = e.target.value;
+                                      setCreateQuestions(updated);
+                                    }}
+                                    className={`block w-full border ${
+                                      rslSettings.high_contrast
+                                        ? "border-white bg-gray-700 text-white"
+                                        : "border-gray-300 bg-white"
+                                    } rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${
+                                      rslSettings.large_text ? "text-base" : "text-sm"
+                                    }`}
+                                    placeholder="Optional explanation"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="is_published"
+                      id="create-is-published"
+                      checked={createFormData.is_published}
+                      onChange={handleCreateCheckboxChange}
+                      className={`h-4 w-4 ${
+                        rslSettings.high_contrast
+                          ? "text-white"
+                          : "text-purple-600"
+                      } focus:ring-purple-500 border-gray-300 rounded`}
+                    />
+                    <label
+                      htmlFor="create-is-published"
+                      className={`ml-2 block ${
+                        rslSettings.large_text ? "text-base" : "text-sm"
+                      } ${
+                        rslSettings.high_contrast
+                          ? "text-white"
+                          : "text-gray-900"
+                      }`}
+                    >
+                      Publish immediately
+                    </label>
+                  </div>
+                </div>
+              </div>
+              {/* Modal Footer */}
+              <div
+                className={`${
+                  rslSettings.high_contrast
+                    ? "bg-gray-800 border-white"
+                    : "bg-gray-50 border-gray-200"
+                } px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t`}
+              >
+                <button
+                  type="button"
+                  className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 ${
+                    rslSettings.large_text ? "text-base" : "text-base"
+                  } font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm`}
+                  onClick={handleCreateSubmit}
+                >
+                  Create Quiz
+                </button>
+                <button
+                  type="button"
+                  className={`mt-3 w-full inline-flex justify-center rounded-md border ${
+                    rslSettings.high_contrast
+                      ? "border-white text-white bg-gray-800 hover:bg-gray-700"
+                      : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                  } shadow-sm px-4 py-2 ${
+                    rslSettings.large_text ? "text-base" : "text-base"
+                  } font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm`}
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>;
 };

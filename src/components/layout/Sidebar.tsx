@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboardIcon, BookOpenIcon, AwardIcon, BellIcon, UserIcon, SettingsIcon, UsersIcon, FileTextIcon, BarChartIcon, LogOutIcon, MenuIcon, XIcon, BookIcon, GraduationCapIcon, PencilIcon, ClipboardListIcon, HomeIcon, GamepadIcon, StarIcon, TrophyIcon, ChevronRightIcon, ActivityIcon, MegaphoneIcon, LayersIcon, LineChartIcon, FileIcon } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { createAuditLog } from '../../lib/supabase-utils';
+import { useNavigate } from 'react-router-dom';
 interface SidebarProps {
   role: 'student' | 'admin';
   isOpen: boolean;
@@ -120,7 +121,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       to: '/admin/users',
       icon: <UsersIcon size={20} />
     }]
-  }, {
+  },
+  {
     title: 'Content',
     items: [{
       name: 'Courses',
@@ -146,8 +148,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'Content',
       to: '/admin/content',
       icon: <LayersIcon size={20} />
+    }, {
+      name: 'RSL Management',
+      to: '/admin/rsl-management',
+      icon: <SettingsIcon size={20} />
     }]
-  }, {
+  },
+  {
     title: 'System',
     items: [{
       name: 'Analytics',
@@ -168,20 +175,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }]
   }];
   const navGroups = role === 'admin' ? adminNavGroups : studentNavGroups;
+  const auth = useAuth();
+  const navigate = useNavigate();
   const handleSignOut = async () => {
     try {
-      const {
-        data: {
-          user
-        }
-      } = await supabase.auth.getUser();
-      if (user) {
-        await createAuditLog(user.id, 'logout', {
-          method: 'sidebar_button'
-        });
-      }
-      await supabase.auth.signOut();
-      localStorage.removeItem('userRole');
+      console.debug('Sidebar: calling auth.signOut');
+      await auth.signOut();
+      navigate('/'); // Navigate to login page after signout for faster transition
     } catch (error) {
       console.error('Error signing out:', error);
     }

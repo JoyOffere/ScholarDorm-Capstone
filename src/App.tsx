@@ -28,6 +28,7 @@ import { AdminGames } from './components/dashboard/admin/Games';
 import { AdminPosts } from './components/dashboard/admin/Posts';
 import { AdminContent } from './components/dashboard/admin/Content';
 import { AdminAnalytics } from './components/dashboard/admin/Analytics';
+import { RSLManagement } from './components/dashboard/admin/RSLManagement';
 import { TermsOfService } from './components/legal/TermsOfService';
 import { PrivacyPolicy } from './components/legal/PrivacyPolicy';
 import { RSLPage } from './components/accessibility/RSLPage';
@@ -37,6 +38,8 @@ import { supabase } from './lib/supabase';
 import { createAuditLog } from './lib/supabase-utils';
 import { Session } from '@supabase/supabase-js';
 import { Toast } from './components/common/Toast';
+import { AuthProvider } from './contexts/AuthContext';
+import { Landing } from '../landingPage/landing';
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,13 +71,27 @@ export function App() {
       const timeoutPromise = new Promise<{ data: { session: Session | null } }>((resolve) => {
         setTimeout(() => resolve({ data: { session: null } }), 3000);
       });
+      // Fallback: ensure loading can't stay true forever
+      const fallbackTimer = setTimeout(() => {
+        console.warn('Auth initialization fallback: forcing loading=false');
+        setLoading(false);
+      }, 5000);
       try {
+        // Attempt to refresh session; don't let this throw and block the UI
+        try {
+          // refreshSession may not be available in all clients/environments; guard it
+          // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+          // @ts-ignore
+          if (supabase.auth.refreshSession) await supabase.auth.refreshSession();
+        } catch (err) {
+          console.warn('refreshSession failed or timed out - continuing', err);
+        }
         const { data: { session } } = await Promise.race([
           supabase.auth.getSession(),
           timeoutPromise
         ]);
         setSession(session);
-        if (session) {
+  if (session) {
           const storedRole = localStorage.getItem('userRole') as 'student' | 'admin' | null;
           if (storedRole) {
             setUserRole(storedRole);
@@ -102,13 +119,16 @@ export function App() {
           setLoading(false);
           didSetLoading = true;
         }
+        clearTimeout(fallbackTimer);
       } catch (error) {
         console.error('Auth initialization error:', error);
         setLoading(false);
         didSetLoading = true;
+        clearTimeout(fallbackTimer);
       } finally {
         if (!didSetLoading) {
           setLoading(false);
+          clearTimeout(fallbackTimer);
         }
       }
     };
@@ -153,11 +173,10 @@ export function App() {
     });
     return () => subscription.unsubscribe();
   }, []);
-  if (loading) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-700"></div>
-      </div>;
-  }
+  // Note: don't block route navigation with a global loading spinner.
+  // We prefer rapid navigation and optimistic rendering; pages should handle
+  // missing data themselves. This avoids showing a full-screen loader when
+  // the auth provider is still initializing.
   // Auth Guard component to protect routes
   const RequireAuth = ({
     children
@@ -169,7 +188,7 @@ export function App() {
     }
     return <>{children}</>;
   };
-  // Role Guard component to protect role-specific routes
+    // Role Guard component to protect role-specific routes
   const RequireRole = ({
     children,
     requiredRole
@@ -177,17 +196,37 @@ export function App() {
     children: React.ReactNode;
     requiredRole: 'student' | 'admin';
   }) => {
+    // If not signed in, redirect to public root
     if (!session) {
       return <Navigate to="/" replace />;
     }
-    // If userRole is not set yet but we have a session, use the stored role or default to student
-    const effectiveRole = userRole || localStorage.getItem('userRole') as 'student' | 'admin' || 'student';
-    if (effectiveRole !== requiredRole) {
-      return <Navigate to={effectiveRole === 'admin' ? '/admin' : '/dashboard'} replace />;
+
+    // If userRole isn't yet available, try to hydrate from localStorage
+    // but do not block rendering — return children immediately for rapid navigation.
+    React.useEffect(() => {
+      if (!userRole) {
+        const stored = localStorage.getItem('userRole') as 'student' | 'admin' | null;
+        if (stored) {
+          setUserRole(stored);
+        } else {
+          // optimistic default to student to avoid blocking navigation
+          setUserRole('student');
+          localStorage.setItem('userRole', 'student');
+        }
+      }
+    }, [userRole]);
+
+    // If role doesn't match, redirect to their dashboard; do not show a loader.
+    if (userRole && userRole !== requiredRole) {
+      const redirectPath = userRole === 'admin' ? '/admin' : '/dashboard';
+      console.log(`Role mismatch: user is ${userRole}, required ${requiredRole}, redirecting to ${redirectPath}`);
+      return <Navigate to={redirectPath} replace />;
     }
+
     return <>{children}</>;
   };
-  return <BrowserRouter>
+  return <AuthProvider onInitFallback={() => showToast('Network issue: continuing with limited data. If problems persist, try refreshing.', 'info')}>
+      <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Toast visible={toast.visible} message={toast.message} type={toast.type} duration={toast.duration} onClose={() => setToast(prev => ({
       ...prev,
       visible: false
@@ -196,8 +235,9 @@ export function App() {
       <Chatbot />
       <Routes>
         {/* Public routes */}
-        <Route path="/" element={session ? <Navigate to={userRole === 'admin' ? '/admin' : '/dashboard'} replace /> : <LoginPage />} />
-        <Route path="/signup" element={session ? <Navigate to={userRole === 'admin' ? '/admin' : '/dashboard'} replace /> : <SignupPage />} />
+  <Route path="/" element={session ? (userRole ? <Navigate to={userRole === 'admin' ? '/admin' : '/dashboard'} replace /> : <div className="py-6 text-center text-sm text-gray-600">Preparing your dashboard…</div>) : <Landing />} />
+  <Route path="/login" element={session ? (userRole ? <Navigate to={userRole === 'admin' ? '/admin' : '/dashboard'} replace /> : <div className="py-6 text-center text-sm text-gray-600">Preparing your dashboard…</div>) : <LoginPage />} />
+  <Route path="/signup" element={session ? (userRole ? <Navigate to={userRole === 'admin' ? '/admin' : '/dashboard'} replace /> : <div className="py-6 text-center text-sm text-gray-600">Preparing your dashboard…</div>) : <SignupPage />} />
         {/* Legal pages */}
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -286,9 +326,13 @@ export function App() {
         <Route path="/admin/announcements/:id/edit" element={<RequireRole requiredRole="admin">
               <AnnouncementForm mode="edit" />
             </RequireRole>} />
+        <Route path="/admin/rsl-management" element={<RequireRole requiredRole="admin">
+              <RSLManagement />
+            </RequireRole>} />
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Footer />
-    </BrowserRouter>;
+    </BrowserRouter>
+    </AuthProvider>;
 }

@@ -25,7 +25,7 @@ export const StudentAchievements: React.FC = () => {
     coursesCompleted: 0,
     quizzesPassed: 0
   });
-  const [expandedCategory, setExpandedCategory] = useState<string | null>('all');
+  const [expandedCategory, setExpandedCategory] = useState<string>('all');
   const [selectedBadge, setSelectedBadge] = useState<Badge | null>(null);
   useEffect(() => {
     fetchAchievements();
@@ -136,7 +136,7 @@ export const StudentAchievements: React.FC = () => {
   const getBadgeTypeIcon = (type: string) => {
     switch (type) {
       case 'streak':
-        return <div size={18} className="text-orange-500" />;
+        return <AwardIcon size={18} className="text-orange-500" />;
       case 'achievement':
         return <TrophyIcon size={18} className="text-purple-500" />;
       case 'course':
@@ -240,9 +240,7 @@ export const StudentAchievements: React.FC = () => {
       </div>
     </motion.div>;
   return <DashboardLayout title="My Achievements" role="student">
-      {loading ? <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div> : <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {loading ? <div className="py-6 text-center text-sm text-gray-600">Loading achievements…</div> : <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content - badges */}
           <div className="lg:col-span-2 space-y-6">
             {/* Achievement stats */}
@@ -252,8 +250,8 @@ export const StudentAchievements: React.FC = () => {
               </h2>
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <div className="bg-blue-50 rounded-lg p-4 text-center">
-                  <div className="flex items-center justify-center mb-2 text-blue-500">
-                    <div size={24} />
+                    <div className="flex items-center justify-center mb-2 text-blue-500">
+                    <BarChart2Icon size={24} />
                   </div>
                   <p className="text-2xl font-bold text-blue-700">
                     {stats.currentStreak}
@@ -312,8 +310,8 @@ export const StudentAchievements: React.FC = () => {
                   <button onClick={() => setExpandedCategory('all')} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${expandedCategory === 'all' ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
                     All Badges
                   </button>
-                  <button onClick={() => setExpandedCategory('streak')} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${expandedCategory === 'streak' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
-                    <div size={14} className="inline mr-1" />
+                    <button onClick={() => setExpandedCategory('streak')} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${expandedCategory === 'streak' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+                    <AwardIcon size={14} className="inline mr-1" />
                     Streak Badges
                   </button>
                   <button onClick={() => setExpandedCategory('achievement')} className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap ${expandedCategory === 'achievement' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>

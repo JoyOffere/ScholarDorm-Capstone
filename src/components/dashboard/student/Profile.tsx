@@ -131,9 +131,7 @@ export const StudentProfile: React.FC = () => {
   };
   if (loading && !user) {
     return <DashboardLayout title="Profile" role="student">
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
-        </div>
+        <div className="py-6 text-center text-sm text-gray-600">Loading profile…</div>
       </DashboardLayout>;
   }
   return <DashboardLayout title="My Profile" role="student">

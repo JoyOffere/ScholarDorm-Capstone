@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { SearchIcon, FilterIcon, DownloadIcon, ClockIcon, UserIcon, ActivityIcon, EyeIcon, RefreshCwIcon } from 'lucide-react';
+import { SearchIcon, FilterIcon, DownloadIcon, ClockIcon, UserIcon, ActivityIcon, EyeIcon, RefreshCwIcon, TrashIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { AuditLog as AuditLogType, AuditAction } from '../../../lib/supabase-utils';
+import { useAuth } from '../../../contexts/AuthContext';
 export const AdminAuditLog: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);

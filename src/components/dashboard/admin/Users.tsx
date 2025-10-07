@@ -1,60 +1,230 @@
 import React, { useEffect, useState } from 'react';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, UserIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, MailIcon, ShieldIcon, CalendarIcon, KeyIcon, EyeIcon, CheckIcon, XCircleIcon } from 'lucide-react';
+import {
+  SearchIcon,
+  FilterIcon,
+  PlusIcon,
+  EditIcon,
+  TrashIcon,
+  UserIcon,
+  DownloadIcon,
+  RefreshCwIcon,
+  MoreHorizontalIcon,
+  XIcon,
+  MailIcon,
+  ShieldIcon,
+  EyeIcon
+} from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-interface User {
+import { useAuth } from '../../../contexts/AuthContext';
+interface EnhancedUser {
   id: string;
   email: string;
   full_name: string;
   avatar_url?: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
+  status: 'active' | 'inactive' | 'suspended';
   streak_count: number;
+  longest_streak: number;
   last_login: string;
   created_at: string;
+  updated_at: string;
+  bio?: string;
+  phone?: string;
+  department?: string;
+  email_verified: boolean;
+  accessibility_preferences: any;
+  // Additional computed fields
+  total_courses?: number;
+  completed_courses?: number;
+  badges_earned?: number;
+  quiz_attempts?: number;
+  average_score?: number;
 }
 export const AdminUsers: React.FC = () => {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<EnhancedUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const [roleFilter, setRoleFilter] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [sortField, setSortField] = useState<keyof EnhancedUser>('created_at');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [showUserModal, setShowUserModal] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<EnhancedUser | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [editFormData, setEditFormData] = useState({
     full_name: '',
     email: '',
-    role: 'student' as 'student' | 'admin'
+    role: 'student' as 'student' | 'admin' | 'teacher',
+    status: 'active' as 'active' | 'inactive' | 'suspended',
+    bio: '',
+    phone: '',
+    department: ''
   });
+  const [addFormData, setAddFormData] = useState({
+    full_name: '',
+    email: '',
+    password: '',
+    role: 'student' as 'student' | 'admin' | 'teacher',
+    status: 'active' as 'active' | 'inactive' | 'suspended',
+    bio: '',
+    phone: '',
+    department: ''
+  });
+  const [isCreating, setIsCreating] = useState(false);
   useEffect(() => {
     fetchUsers();
-  }, [roleFilter]);
+  }, [roleFilter, statusFilter, sortField, sortDirection]);
+
+  useEffect(() => {
+    const delayedSearch = setTimeout(() => {
+      if (searchTerm !== '') {
+        fetchUsers();
+      }
+    }, 300);
+
+    return () => clearTimeout(delayedSearch);
+  }, [searchTerm]);
+
   const fetchUsers = async () => {
     try {
       setLoading(true);
-      let query = supabase.from('users').select('*').order('created_at', {
-        ascending: false
-      });
+      const startTime = performance.now();
+      console.debug('fetchUsers() start', { page, pageSize, searchTerm, roleFilter, statusFilter, sortField, sortDirection });
+
+      // Build a lightweight main query: select only base user fields (avoid fetching related arrays)
+      let baseSelect = 'id, email, full_name, avatar_url, role, status, streak_count, longest_streak, last_login, created_at, updated_at, bio, phone, department, email_verified, accessibility_preferences';
+      let query = supabase
+        .from('users')
+        .select(baseSelect, { count: 'exact' })
+        .order(sortField as string, { ascending: sortDirection === 'asc' })
+        .range((page - 1) * pageSize, page * pageSize - 1);
+
+      // Apply filters
       if (roleFilter) {
         query = query.eq('role', roleFilter);
       }
-      if (searchTerm) {
-        query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%`);
+      
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
       }
-      const {
-        data,
-        error
-      } = await query;
-      if (error) throw error;
-      setUsers(data || []);
+
+      if (searchTerm) {
+        // use ilike on individual columns via or to keep the query readable
+        query = query.or(`full_name.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,department.ilike.%${searchTerm}%`);
+      }
+
+      const { data: baseData, error: baseError, count } = await query;
+      console.debug('fetchUsers() base query result', { count, baseError });
+      if (baseError) throw baseError;
+
+      // baseData contains only base user fields. We'll batch-fetch aggregated related counts
+      const userIds = (baseData || []).map((u: any) => u.id);
+
+      // default enhanced users mapping from baseData
+      const enhancedUsers = (baseData || []).map((user: any) => ({
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        avatar_url: user.avatar_url,
+        role: user.role || 'student',
+        status: user.status || 'active',
+        streak_count: user.streak_count || 0,
+        longest_streak: user.longest_streak || 0,
+        last_login: user.last_login,
+        created_at: user.created_at,
+        updated_at: user.updated_at,
+        bio: user.bio || '',
+        phone: user.phone || '',
+        department: user.department || '',
+        email_verified: !!user.email_verified,
+        accessibility_preferences: user.accessibility_preferences || {},
+        total_courses: 0,
+        completed_courses: 0,
+        badges_earned: 0,
+        quiz_attempts: 0,
+        average_score: 0
+      })) as EnhancedUser[];
+
+      // If we have userIds, fetch aggregated counts in parallel (smaller queries)
+      if (userIds.length > 0) {
+        const aggStart = performance.now();
+        // Fetch course counts per user
+        const coursesPromise = supabase
+          .from('user_courses')
+          .select('user_id, completed', { count: 'exact' })
+          .in('user_id', userIds);
+
+        const badgesPromise = supabase
+          .from('user_badges')
+          .select('user_id', { count: 'exact' })
+          .in('user_id', userIds);
+
+        const attemptsPromise = supabase
+          .from('quiz_attempts')
+          .select('user_id, percentage', { count: 'exact' })
+          .in('user_id', userIds);
+
+        const [coursesRes, badgesRes, attemptsRes] = await Promise.all([coursesPromise, badgesPromise, attemptsPromise]);
+        console.debug('fetchUsers() related queries', { coursesRes, badgesRes, attemptsRes, aggDuration: performance.now() - aggStart });
+
+        // Map aggregates back to users
+        const courseRows = coursesRes.data || [];
+        const badgeRows = badgesRes.data || [];
+        const attemptRows = attemptsRes.data || [];
+
+        const courseMap: Record<string, { total: number; completed: number }> = {};
+        for (const row of courseRows) {
+          courseMap[row.user_id] = courseMap[row.user_id] || { total: 0, completed: 0 };
+          courseMap[row.user_id].total += 1;
+          if (row.completed) courseMap[row.user_id].completed += 1;
+        }
+
+        const badgeMap: Record<string, number> = {};
+        for (const row of badgeRows) {
+          badgeMap[row.user_id] = (badgeMap[row.user_id] || 0) + 1;
+        }
+
+        const attemptMap: Record<string, { total: number; sum: number }> = {};
+        for (const row of attemptRows) {
+          attemptMap[row.user_id] = attemptMap[row.user_id] || { total: 0, sum: 0 };
+          attemptMap[row.user_id].total += 1;
+          attemptMap[row.user_id].sum += (row.percentage || 0);
+        }
+
+        for (const u of enhancedUsers) {
+          if (courseMap[u.id]) {
+            u.total_courses = courseMap[u.id].total;
+            u.completed_courses = courseMap[u.id].completed;
+          }
+          if (badgeMap[u.id]) u.badges_earned = badgeMap[u.id];
+          if (attemptMap[u.id]) {
+            u.quiz_attempts = attemptMap[u.id].total;
+            u.average_score = attemptMap[u.id].total > 0 ? Math.round(attemptMap[u.id].sum / attemptMap[u.id].total) : 0;
+          }
+        }
+      }
+
+      setUsers(enhancedUsers);
+      setTotalCount(typeof count === 'number' ? count : null);
+      console.debug('fetchUsers() done', { duration: performance.now() - startTime, fetched: enhancedUsers.length, totalCount });
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Removed unused sorting and bulk-action handlers to satisfy strict TS settings.
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     fetchUsers();
@@ -88,48 +258,73 @@ export const AdminUsers: React.FC = () => {
   const resetFilters = () => {
     setSearchTerm('');
     setRoleFilter(null);
+    setStatusFilter(null);
+    setSortField('created_at');
+    setSortDirection('desc');
   };
-  const handleUserClick = (user: User) => {
+
+  const handleUserClick = (user: EnhancedUser) => {
     setSelectedUser(user);
     setShowUserModal(true);
     setIsEditing(false);
     setEditFormData({
       full_name: user.full_name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      status: user.status,
+      bio: user.bio || '',
+      phone: user.phone || '',
+      department: user.department || ''
     });
   };
+
   const handleEditClick = () => {
     setIsEditing(true);
   };
+
   const handleEditCancel = () => {
     setIsEditing(false);
+    if (selectedUser) {
+      setEditFormData({
+        full_name: selectedUser.full_name,
+        email: selectedUser.email,
+        role: selectedUser.role,
+        status: selectedUser.status,
+        bio: selectedUser.bio || '',
+        phone: selectedUser.phone || '',
+        department: selectedUser.department || ''
+      });
+    }
   };
+
   const handleEditSubmit = async () => {
     if (!selectedUser) return;
     try {
-      const {
-        error
-      } = await supabase.from('users').update({
-        full_name: editFormData.full_name,
-        email: editFormData.email,
-        role: editFormData.role
-      }).eq('id', selectedUser.id);
+      const { error } = await supabase
+        .from('users')
+        .update({
+          full_name: editFormData.full_name,
+          email: editFormData.email,
+          role: editFormData.role,
+          status: editFormData.status,
+          bio: editFormData.bio,
+          phone: editFormData.phone,
+          department: editFormData.department,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedUser.id);
+
       if (error) throw error;
-      // Update local state
-      setUsers(users.map(user => user.id === selectedUser.id ? {
-        ...user,
-        full_name: editFormData.full_name,
-        email: editFormData.email,
-        role: editFormData.role
-      } : user));
-      // Update selected user
-      setSelectedUser({
-        ...selectedUser,
-        full_name: editFormData.full_name,
-        email: editFormData.email,
-        role: editFormData.role
-      });
+
+      // Refresh users data to get updated information
+      await fetchUsers();
+      
+      // Update selected user with new data
+      const updatedUser = users.find(u => u.id === selectedUser.id);
+      if (updatedUser) {
+        setSelectedUser(updatedUser);
+      }
+      
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating user:', error);
@@ -160,7 +355,42 @@ export const AdminUsers: React.FC = () => {
       alert('Failed to send password reset email');
     }
   };
-  return <DashboardLayout title="User Management" role="admin">
+
+  const handleAddInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setAddFormData({ ...addFormData, [name]: value });
+  };
+
+  const createUser = async () => {
+    if (!addFormData.email || !addFormData.password || !addFormData.full_name) {
+      alert('Please provide full name, email and password for the new user.');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: addFormData.email,
+        password: addFormData.password
+      });
+      if (error) throw error;
+
+      // Optionally you can create a profile row here, but per your instruction we'll let Supabase handle confirmation
+      // and the signup flow. If you want a profile created immediately, we can insert into `users` table too.
+
+      setShowAddUserModal(false);
+      setAddFormData({ full_name: '', email: '', password: '', role: 'student', status: 'active', bio: '', phone: '', department: '' });
+      alert('User signup initiated. Supabase will send confirmation if configured.');
+    } catch (err: any) {
+      console.error('Create user (supabase.auth.signUp) failed:', err);
+      alert('Failed to create user: ' + (err?.message || String(err)));
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <DashboardLayout title="User Management" role="admin">
       {/* Filters and actions */}
       <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200 mb-6">
         <div className="flex flex-col gap-4">
@@ -182,7 +412,8 @@ export const AdminUsers: React.FC = () => {
             {/* Add User button */}
             <button className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500" onClick={() => {
             // In a real implementation, this would show a form to add a new user
-            alert('This would open a form to add a new user');
+            // Show Add User modal
+            setShowAddUserModal(true);
           }}>
               <PlusIcon size={16} className="mr-2" />
               Add User
@@ -260,8 +491,7 @@ export const AdminUsers: React.FC = () => {
                       {searchTerm || roleFilter ? <button onClick={resetFilters} className="mt-4 text-purple-600 hover:text-purple-800 font-medium">
                           Reset all filters
                         </button> : <button className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => {
-                    // In a real implementation, this would show a form to add a new user
-                    alert('This would open a form to add a new user');
+                    setShowAddUserModal(true);
                   }}>
                           <PlusIcon size={16} className="mr-2" />
                           Add User
@@ -375,8 +605,7 @@ export const AdminUsers: React.FC = () => {
             {searchTerm || roleFilter ? <button onClick={resetFilters} className="w-full text-purple-600 hover:text-purple-800 font-medium">
                 Reset all filters
               </button> : <button className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => {
-          // In a real implementation, this would show a form to add a new user
-          alert('This would open a form to add a new user');
+          setShowAddUserModal(true);
         }}>
                 <PlusIcon size={16} className="mr-2" />
                 Add User
@@ -560,15 +789,79 @@ export const AdminUsers: React.FC = () => {
                 </div>
               </div>
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button type="button" className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={confirmDelete}>
+                <button 
+                  type="button" 
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm" 
+                  onClick={confirmDelete}
+                >
                   Delete
                 </button>
-                <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setShowDeleteModal(false)}>
+                <button 
+                  type="button" 
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" 
+                  onClick={() => setShowDeleteModal(false)}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      }
+      {/* Add User Modal (renders independently) */}
+      {showAddUserModal && <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
+              &#8203;
+            </span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full" style={{ maxWidth: '90%', width: '600px' }}>
+              <div className="bg-purple-50 px-4 py-3 border-b border-purple-100 flex justify-between items-center">
+                <h3 className="text-lg font-medium text-purple-900">Add New User</h3>
+                <button onClick={() => setShowAddUserModal(false)} className="text-purple-500 hover:text-purple-700 focus:outline-none">
+                  <XIcon size={20} />
+                </button>
+              </div>
+              <div className="p-6">
+                <div className="space-y-4">
+                  <div>
+                    <label htmlFor="add_full_name" className="block text-sm font-medium text-gray-700">Full Name</label>
+                    <input autoFocus required placeholder="e.g. Jane Doe" type="text" name="full_name" id="add_full_name" value={addFormData.full_name} onChange={handleAddInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="add_email" className="block text-sm font-medium text-gray-700">Email</label>
+                    <input required placeholder="name@example.com" type="email" name="email" id="add_email" value={addFormData.email} onChange={handleAddInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                  </div>
+                  <div>
+                    <label htmlFor="add_password" className="block text-sm font-medium text-gray-700">Temporary Password</label>
+                    <input required placeholder="Temporary password (min 8 chars)" type="password" name="password" id="add_password" value={addFormData.password} onChange={handleAddInputChange} aria-describedby="add-password-help" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                    <p id="add-password-help" className="text-xs text-gray-500 mt-1">Provide a temporary password — user can change it later.</p>
+                  </div>
+                  <div>
+                    <label htmlFor="add_role" className="block text-sm font-medium text-gray-700">Role</label>
+                    <select name="role" id="add_role" value={addFormData.role} onChange={handleAddInputChange} aria-label="Role" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm">
+                      <option value="student">Student</option>
+                      <option value="teacher">Teacher</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Select a role for the new user. Default: Student.</p>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" disabled={isCreating} className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 ${isCreating ? 'bg-gray-400 cursor-not-allowed' : 'bg-purple-600 hover:bg-purple-700'} text-base font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm`} onClick={createUser}>
+                  {isCreating ? <span className="flex items-center"><svg className="animate-spin h-4 w-4 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a12 12 0 00-12 12h4z"></path></svg>Creating...</span> : 'Create User'}
+                </button>
+                <button type="button" disabled={isCreating} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setShowAddUserModal(false)}>
                   Cancel
                 </button>
               </div>
             </div>
           </div>
         </div>}
-    </DashboardLayout>;
+    </DashboardLayout>
+  );
 };
+

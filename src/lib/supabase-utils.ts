@@ -38,7 +38,7 @@ export interface Notification {
   created_at: string;
 }
 // Audit log types
-export type AuditAction = 'login' | 'logout' | 'profile_update' | 'course_start' | 'course_progress' | 'course_complete' | 'badge_earned' | 'settings_changed' | 'password_changed' | 'admin_user_create' | 'admin_user_update' | 'admin_user_delete' | 'admin_content_create' | 'admin_content_update' | 'admin_content_delete';
+export type AuditAction = 'login' | 'logout' | 'profile_update' | 'course_start' | 'course_progress' | 'course_complete' | 'badge_earned' | 'settings_changed' | 'password_changed' | 'admin_user_create' | 'admin_user_update' | 'admin_user_delete' | 'admin_content_create' | 'admin_content_update' | 'admin_content_delete' | 'notification_read' | 'all_notifications_read' | 'notification_deleted';
 export interface AuditLog {
   id: string;
   user_id: string;

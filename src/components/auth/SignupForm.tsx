@@ -1,4 +1,4 @@
-import React, { useState, Component } from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { Input } from '../common/Input';
@@ -17,6 +17,7 @@ export const SignupForm: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [signupError, setSignupError] = useState<string | null>(null);
   const [showRSLModal, setShowRSLModal] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const navigate = useNavigate();
   const {
     register,
@@ -63,6 +64,8 @@ export const SignupForm: React.FC = () => {
       });
       if (error) throw error;
       if (authData?.user) {
+        setUserId(authData.user.id);
+        
         // Create user profile in the database based on schema
         const {
           error: profileError
@@ -125,14 +128,13 @@ export const SignupForm: React.FC = () => {
           if (error) console.error('Settings creation error:', error);
         });
         // Create audit log
-        await createAuditLog(authData.user.id, 'signup', {
+        await createAuditLog(authData.user.id, 'profile_update', {
           method: 'email'
         });
         // Store user role in localStorage to avoid race conditions
         localStorage.setItem('userRole', 'student');
         // Automatically sign in the user
         const {
-          data: signInData,
           error: signInError
         } = await supabase.auth.signInWithPassword({
           email: data.email,
@@ -232,6 +234,6 @@ export const SignupForm: React.FC = () => {
         </p>
       </div>
       {/* RSL Modal */}
-      <RSLModal isOpen={showRSLModal} onClose={toggleRSLModal} />
+      <RSLModal isOpen={showRSLModal} onClose={toggleRSLModal} userId={userId ?? undefined} />
     </div>;
 };
