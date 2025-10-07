@@ -204,7 +204,7 @@ https://scholardorm-lms.vercel.app/
 
 
 ## Link to Demo
-
+https://github.com/JoyOffere/ScholarDorm-Capstone
 
 ## Figma Link
 https://www.figma.com/design/sGBj3LQ856Ffliu4rReGVL/Capstone?node-id=0-1&p=f&t=HJkD0LabE0whHPjh-0
