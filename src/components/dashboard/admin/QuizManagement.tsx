@@ -1810,5 +1810,183 @@ export const AdminQuizManagement: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Quiz Preview Modal */}
+      {showPreviewModal && previewQuiz && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full border">
+              
+              {/* Modal Header */}
+              <div className="bg-purple-50 px-6 py-4 border-b border-purple-100 flex justify-between items-center">
+                <div className="flex items-center space-x-3">
+                  <EyeIcon size={24} className="text-purple-600" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-800">Quiz Preview</h3>
+                    <p className="text-sm text-gray-600">{previewQuiz.title}</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={closePreviewModal}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <XIcon size={24} />
+                </button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="bg-white px-6 py-6">
+                {previewQuestions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <ClipboardListIcon size={48} className="mx-auto text-gray-400 mb-4" />
+                    <h4 className="text-lg font-medium text-gray-800 mb-2">No Questions Available</h4>
+                    <p className="text-gray-600">This quiz doesn't have any questions yet. Add questions to enable preview.</p>
+                  </div>
+                ) : previewShowResults ? (
+                  <div className="text-center py-8">
+                    <CheckCircleIcon size={64} className="mx-auto text-green-500 mb-4" />
+                    <h4 className="text-xl font-semibold text-gray-800 mb-2">Preview Complete!</h4>
+                    <p className="text-gray-600 mb-4">This is how the quiz would appear to students.</p>
+                    <div className="bg-gray-50 rounded-lg p-4 max-w-md mx-auto">
+                      <div className="text-sm text-gray-600 mb-2">Questions Answered:</div>
+                      <div className="text-2xl font-bold text-purple-600">{Object.keys(previewAnswers).length} of {previewQuestions.length}</div>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {/* Question Progress */}
+                    <div className="mb-6">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="text-sm text-gray-600">
+                          Question {previewCurrentQuestion + 1} of {previewQuestions.length}
+                        </span>
+                        <span className="text-sm text-gray-600">
+                          {previewQuestions[previewCurrentQuestion]?.points || 1} point{previewQuestions[previewCurrentQuestion]?.points !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${((previewCurrentQuestion + 1) / previewQuestions.length) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    {/* Current Question */}
+                    {previewQuestions[previewCurrentQuestion] && (
+                      <div className="mb-6">
+                        <h4 className="text-lg font-medium text-gray-800 mb-4">
+                          {previewQuestions[previewCurrentQuestion].question_text}
+                        </h4>
+                        
+                        {previewQuestions[previewCurrentQuestion].question_type === 'mcq' && (
+                          <div className="space-y-3">
+                            {Object.entries(previewQuestions[previewCurrentQuestion].options || {}).map(([key, value]: [string, any]) => (
+                              <label key={key} className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`preview-question-${previewCurrentQuestion}`}
+                                  value={key}
+                                  checked={previewAnswers[previewQuestions[previewCurrentQuestion].id] === key}
+                                  onChange={() => handlePreviewAnswer(previewQuestions[previewCurrentQuestion].id, key)}
+                                  className="mr-3"
+                                />
+                                <span className="font-medium mr-2">{key}.</span>
+                                <span>{value}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+
+                        {previewQuestions[previewCurrentQuestion].question_type === 'short_answer' && (
+                          <textarea
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            rows={4}
+                            placeholder="Enter your answer here..."
+                            value={previewAnswers[previewQuestions[previewCurrentQuestion].id] || ''}
+                            onChange={(e) => handlePreviewAnswer(previewQuestions[previewCurrentQuestion].id, e.target.value)}
+                          />
+                        )}
+
+                        {previewQuestions[previewCurrentQuestion].question_type === 'word_problem' && (
+                          <textarea
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                            rows={4}
+                            placeholder="Show your work and final answer..."
+                            value={previewAnswers[previewQuestions[previewCurrentQuestion].id] || ''}
+                            onChange={(e) => handlePreviewAnswer(previewQuestions[previewCurrentQuestion].id, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Navigation */}
+                    <div className="flex justify-between items-center">
+                      <button
+                        onClick={handlePreviewPrevious}
+                        disabled={previewCurrentQuestion === 0}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      
+                      <div className="flex space-x-2">
+                        {previewQuestions.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => setPreviewCurrentQuestion(index)}
+                            className={`w-8 h-8 rounded-full text-sm font-medium ${
+                              index === previewCurrentQuestion
+                                ? 'bg-purple-600 text-white'
+                                : previewAnswers[previewQuestions[index]?.id]
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-gray-100 text-gray-600'
+                            }`}
+                          >
+                            {index + 1}
+                          </button>
+                        ))}
+                      </div>
+
+                      {previewCurrentQuestion === previewQuestions.length - 1 ? (
+                        <button
+                          onClick={handlePreviewSubmit}
+                          className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700"
+                        >
+                          Finish Preview
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handlePreviewNext}
+                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Next
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-gray-50 px-6 py-4 flex justify-between items-center">
+                <div className="text-sm text-gray-600">
+                  <span className="font-medium">Admin Preview Mode</span> - Students will see the same interface
+                </div>
+                <button
+                  onClick={closePreviewModal}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Close Preview
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>;
 };
