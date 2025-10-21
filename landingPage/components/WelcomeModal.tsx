@@ -53,6 +53,12 @@ export const WelcomeModal = () => {
     }
   };
 
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      handleClose();
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -65,13 +71,20 @@ export const WelcomeModal = () => {
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-title"
+          onClick={handleBackdropClick}
         >
           <motion.div
-            initial={{ scale: 0.85, opacity: 0, y: 50 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.85, opacity: 0, y: 50 }}
-            transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+            initial={{ scale: 0.8, opacity: 0, y: 60, rotateX: 15 }}
+            animate={{ scale: 1, opacity: 1, y: 0, rotateX: 0 }}
+            exit={{ scale: 0.9, opacity: 0, y: 40, rotateX: -10 }}
+            transition={{
+              type: 'spring',
+              stiffness: 200,
+              damping: 25,
+              mass: 0.8
+            }}
             className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden relative border border-gray-100/50"
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
             <motion.button
