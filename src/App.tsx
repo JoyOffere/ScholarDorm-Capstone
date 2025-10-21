@@ -125,8 +125,6 @@ const AppContent: React.FC = () => {
           element={
             session && user?.role ? (
               <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
-            ) : session && !user?.role ? (
-              <div className="py-6 text-center text-sm text-gray-600">Preparing your dashboard…</div>
             ) : (
               <Landing />
             )
@@ -137,8 +135,6 @@ const AppContent: React.FC = () => {
           element={
             session && user?.role ? (
               <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
-            ) : session && !user?.role ? (
-              <div className="py-6 text-center text-sm text-gray-600">Preparing your dashboard…</div>
             ) : (
               <LoginPage />
             )
@@ -149,8 +145,6 @@ const AppContent: React.FC = () => {
           element={
             session && user?.role ? (
               <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
-            ) : session && !user?.role ? (
-              <div className="py-6 text-center text-sm text-gray-600">Preparing your dashboard…</div>
             ) : (
               <SignupPage />
             )

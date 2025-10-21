@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { supabase } from '../../lib/supabase';
 import { createAuditLog } from '../../lib/supabase-utils';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   AtSignIcon,
   LockIcon,
@@ -25,6 +26,17 @@ export const LoginForm: React.FC = () => {
   const [showRSLModal, setShowRSLModal] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | undefined>(undefined);
   const navigate = useNavigate();
+  const { user, session } = useAuth();
+
+  // Handle navigation after successful login
+  useEffect(() => {
+    if (session && user?.role && isLoading) {
+      console.log('LoginForm: Auth successful, navigating to dashboard');
+      setIsLoading(false);
+      const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
+      navigate(redirectPath, { replace: true });
+    }
+  }, [session, user, isLoading, navigate]);
 
   const {
     register,
@@ -52,53 +64,58 @@ export const LoginForm: React.FC = () => {
   const onSubmit = async (data: LoginFormData) => {
     setIsLoading(true);
     setLoginError(null);
+    
     try {
+      // Sign in with Supabase
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
+      
       if (error) throw error;
+      
       if (authData?.user) {
         setAuthUserId(authData.user.id);
+        
+        // Check if user exists in our users table
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('role')
           .eq('id', authData.user.id)
           .single();
-        if (userError) {
-          await supabase.from('users').insert({
-            id: authData.user.id,
-            email: data.email,
-            full_name: data.email.split('@')[0],
-            role: 'student',
-            status: 'active',
-            avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-              data.email.split('@')[0],
-            )}&background=0D8ABC&color=fff`,
-            streak_count: 0,
-            longest_streak: 0,
-            email_verified: true,
-          });
-          localStorage.setItem('userRole', 'student');
-          await createAuditLog(authData.user.id, 'login', {
-            method: 'email',
-            role: 'student',
-          });
-          navigate('/dashboard');
-        } else {
-          localStorage.setItem('userRole', userData.role);
-          await createAuditLog(authData.user.id, 'login', {
-            method: 'email',
-            role: userData.role,
-          });
-          navigate(userData.role === 'admin' ? '/admin' : '/dashboard');
+        
+        // Create user record if it doesn't exist
+        if (userError && userError.code === 'PGRST116') {
+          try {
+            await supabase.from('users').insert({
+              id: authData.user.id,
+              email: data.email,
+              full_name: data.email.split('@')[0],
+              role: 'student',
+              status: 'active',
+              avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                data.email.split('@')[0],
+              )}&background=0D8ABC&color=fff`,
+              streak_count: 0,
+              longest_streak: 0,
+              email_verified: true,
+            });
+            console.log('LoginForm: Created new user record');
+          } catch (insertError) {
+            console.warn('LoginForm: Failed to create user record:', insertError);
+          }
         }
+        
+        // Let AuthContext handle the navigation via auth state change
+        // Don't manually navigate here to avoid race conditions
+        console.log('LoginForm: Login successful, waiting for AuthContext to handle navigation');
       }
     } catch (error: any) {
+      console.error('LoginForm: Login error:', error);
       setLoginError('Invalid email or password. Please try again.');
-    } finally {
       setIsLoading(false);
     }
+    // Note: Don't set isLoading(false) on success - let the auth state change handle it
   };
 
   return (
