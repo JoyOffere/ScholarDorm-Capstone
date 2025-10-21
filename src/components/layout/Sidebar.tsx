@@ -179,11 +179,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
   const handleSignOut = async () => {
     try {
-      console.debug('Sidebar: calling auth.signOut');
+      console.log('Sidebar: Starting sign out process...');
+      
+      // Call the improved signOut from AuthContext
       await auth.signOut();
-      navigate('/'); // Navigate to login page after signout for faster transition
+      
+      // Navigate after signout completes
+      navigate('/', { replace: true });
+      console.log('Sidebar: Sign out completed, redirected to home');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Sidebar: Error during sign out:', error);
+      // Even if signout fails, redirect to home for security
+      navigate('/', { replace: true });
     }
   };
   return <>

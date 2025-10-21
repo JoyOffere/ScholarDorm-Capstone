@@ -190,7 +190,7 @@ export const AdminCourses: React.FC = () => {
           ...rest,
           difficulty_level: (difficulty_level as string).toLowerCase() as 'beginner' | 'intermediate' | 'advanced',
           created_by_name: created_by_name || 'Unknown',
-          lesson_count: lesson_count || 0
+          lesson_count: typeof lesson_count === 'number' ? lesson_count : 0
         };
       });
       setCourses(coursesWithDetails || []);

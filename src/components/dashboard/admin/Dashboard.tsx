@@ -65,35 +65,50 @@ export const AdminDashboard: React.FC = () => {
   const [showWelcomeModal, setShowWelcomeModal] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+    
     const loadData = async () => {
-      console.log('Starting to load dashboard data');
+      if (!mounted) return;
+      
+      console.log('AdminDashboard: Starting to load dashboard data');
+      
       try {
-        const fallbackTimer = setTimeout(() => {
-          console.warn('Admin dashboard loading timed out, unblocking UI');
-          setError('Dashboard loading timed out');
-          setLoading(false);
-        }, 10000);
-
-        Promise.all([
+        // Load data with better error handling
+        const results = await Promise.allSettled([
           fetchEnhancedStats(),
           fetchRecentActivities(),
           fetchChartData()
-        ]).then(() => {
-          console.log('Dashboard data loaded successfully');
-          clearTimeout(fallbackTimer);
-        }).catch(err => {
-          console.error('Error during dashboard data loading:', err);
-          clearTimeout(fallbackTimer);
-          setError('Failed to load dashboard data');
-        });
+        ]);
+
+        if (!mounted) return;
+
+        // Check if any critical data failed to load
+        const hasErrors = results.some(result => result.status === 'rejected');
+        
+        if (hasErrors) {
+          console.warn('AdminDashboard: Some data failed to load:', results);
+          setError('Some dashboard data failed to load. Displaying available data.');
+        } else {
+          console.log('AdminDashboard: All dashboard data loaded successfully');
+        }
+
       } catch (err) {
-        setError('Failed to load dashboard data');
-        console.error('Dashboard loading error:', err);
+        if (mounted) {
+          console.error('AdminDashboard: Critical error loading dashboard:', err);
+          setError('Failed to load dashboard data. Please refresh the page.');
+        }
       } finally {
-        setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
+
     loadData();
+
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const fetchEnhancedStats = async () => {

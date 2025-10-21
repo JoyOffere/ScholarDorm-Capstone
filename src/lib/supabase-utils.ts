@@ -432,7 +432,9 @@ export const getCourses = async (filters?: {
     const mappedData = (data || []).map(course => ({
       ...course,
       created_by_name: course.creator?.full_name || 'Unknown',
-      lesson_count: course.lesson_count || 0
+      lesson_count: Array.isArray(course.lesson_count) && course.lesson_count.length > 0 
+        ? course.lesson_count[0].count || 0 
+        : 0
     }));
 
     return mappedData;

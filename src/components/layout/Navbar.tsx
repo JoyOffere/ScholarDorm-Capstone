@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { SearchIcon, BellIcon, UserIcon, HelpCircleIcon, ChevronDownIcon, LogOutIcon, SettingsIcon, MoonIcon, SunIcon, BookIcon, GraduationCapIcon, GamepadIcon, AwardIcon, XIcon, MenuIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
+import { SessionStatusIndicator } from '../common/SessionManager';
 interface NavbarProps {
   role: 'student' | 'admin';
   toggleSidebar: () => void;
@@ -50,12 +51,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const auth = useAuth();
   const handleSignOut = async () => {
     try {
-      console.debug('Navbar: calling auth.signOut');
-      await auth.signOut();
+      console.log('Navbar: Starting sign out process...');
       setShowUserMenu(false);
-      navigate('/'); // Navigate to login page after signout for faster transition
+      
+      // Call the improved signOut from AuthContext
+      await auth.signOut();
+      
+      // Navigate after signout completes
+      navigate('/', { replace: true });
+      console.log('Navbar: Sign out completed, redirected to home');
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Navbar: Error during sign out:', error);
+      // Even if signout fails, redirect to home for security
+      navigate('/', { replace: true });
     }
   };
   const handleSearch = async (e: React.FormEvent) => {
@@ -154,7 +162,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </button>
             {/* Logo - Visible on mobile when sidebar is collapsed */}
             <div className="flex-shrink-0 flex items-center md:hidden ml-2">
-              <Link to={role === 'admin' ? '/admin' : '/dashboard'}>
+              <Link to={role === 'admin' ? '/admin' : '/dashboard'} onClick={toggleSidebar}>
                 <img src="/SCHOLARDORM_LOGO.png" alt="ScholarDorm Logo" className="h-8 w-auto" />
               </Link>
             </div>
@@ -280,6 +288,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
           {/* Right side buttons */}
           <div className="flex items-center">
+            {/* Session Status Indicator - hidden on mobile */}
+            <div className="hidden sm:block mr-2">
+              <SessionStatusIndicator />
+            </div>
             {/* Dark Mode Toggle */}
             <button className="p-2 rounded-full text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500" onClick={toggleDarkMode} aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}>
               {darkMode ? <SunIcon className="h-5 w-5" aria-hidden="true" /> : <MoonIcon className="h-5 w-5" aria-hidden="true" />}

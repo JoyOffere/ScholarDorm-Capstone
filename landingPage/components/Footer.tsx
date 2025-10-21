@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import {
   BookOpenIcon,
   GithubIcon,
@@ -61,44 +62,44 @@ export const Footer = () => {
             <h3 className="text-white font-semibold mb-4">Platform</h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/features"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Features
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/rsl"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   RSL Learning
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/features"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Courses
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/features"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Games
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/features"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Achievements
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -106,44 +107,44 @@ export const Footer = () => {
             <h3 className="text-white font-semibold mb-4">Resources</h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/documentation"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Documentation
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/api"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   API
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/support"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Support
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/community"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Community
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/blog"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Blog
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -151,44 +152,44 @@ export const Footer = () => {
             <h3 className="text-white font-semibold mb-4">Company</h3>
             <ul className="space-y-2">
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/about"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   About Us
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/careers"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Careers
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/contact"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Contact
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/privacy"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a
-                  href="#"
+                <Link
+                  to="/terms"
                   className="text-slate-400 hover:text-white transition-colors"
                 >
                   Terms of Service
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -198,15 +199,15 @@ export const Footer = () => {
             &copy; {new Date().getFullYear()} ScholarDorm. All rights reserved.
           </p>
           <div className="mt-4 md:mt-0 flex space-x-6">
-            <a href="#" className="text-slate-500 hover:text-slate-300 text-sm">
+            <Link to="/privacy" className="text-slate-500 hover:text-slate-300 text-sm">
               Privacy Policy
-            </a>
-            <a href="#" className="text-slate-500 hover:text-slate-300 text-sm">
+            </Link>
+            <Link to="/terms" className="text-slate-500 hover:text-slate-300 text-sm">
               Terms of Service
-            </a>
-            <a href="#" className="text-slate-500 hover:text-slate-300 text-sm">
+            </Link>
+            <Link to="/privacy" className="text-slate-500 hover:text-slate-300 text-sm">
               Cookie Policy
-            </a>
+            </Link>
           </div>
         </div>
       </div>

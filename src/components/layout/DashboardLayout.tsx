@@ -26,47 +26,68 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    // Force loading to false after 5 seconds to prevent infinite loading
-    const loadingTimeout = setTimeout(() => {
-      console.log('Force setting loading to false after timeout');
-      setLoading(false);
-    }, 5000);
-
+    let mounted = true;
+    
     const fetchUserProfile = async () => {
+      if (!mounted) return;
+      
       try {
-        const {
-          data: {
-            user
-          }
-        } = await supabase.auth.getUser();
-        if (user) {
-          // Fetch user profile
-          const {
-            data: profile
-          } = await supabase.from('users').select('full_name, avatar_url').eq('id', user.id).single();
-          // Fetch unread notifications count
-          const {
-            count
-          } = await supabase.from('notifications').select('id', {
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!mounted || !user) {
+          setLoading(false);
+          return;
+        }
+
+        // Fetch user profile and notifications in parallel
+        const [profileResult, notificationResult] = await Promise.allSettled([
+          supabase.from('users').select('full_name, avatar_url').eq('id', user.id).single(),
+          supabase.from('notifications').select('id', {
             count: 'exact',
             head: true
-          }).eq('user_id', user.id).eq('is_read', false);
-          setUserProfile({
-            name: profile?.full_name || user.email?.split('@')[0] || 'User',
-            avatar: profile?.avatar_url,
-            unreadNotifications: count || 0
-          });
+          }).eq('user_id', user.id).eq('is_read', false)
+        ]);
+
+        if (!mounted) return;
+
+        let profileData = null;
+        let notificationCount = 0;
+
+        if (profileResult.status === 'fulfilled' && !profileResult.value.error) {
+          profileData = profileResult.value.data;
         }
-        clearTimeout(loadingTimeout);
+
+        if (notificationResult.status === 'fulfilled' && !notificationResult.value.error) {
+          notificationCount = notificationResult.value.count || 0;
+        }
+
+        setUserProfile({
+          name: profileData?.full_name || user.email?.split('@')[0] || 'User',
+          avatar: profileData?.avatar_url,
+          unreadNotifications: notificationCount
+        });
+
       } catch (error) {
         console.error('Error fetching user profile:', error);
+        if (mounted) {
+          // Set default profile on error
+          setUserProfile({
+            name: role === 'admin' ? 'Administrator' : 'Student',
+            unreadNotifications: 0
+          });
+        }
       } finally {
-        console.log('Setting loading to false');
-        setLoading(false);
-        clearTimeout(loadingTimeout);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
+
     fetchUserProfile();
+
+    return () => {
+      mounted = false;
+    };
   }, [role]);
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
