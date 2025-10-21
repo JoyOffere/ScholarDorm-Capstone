@@ -78,6 +78,7 @@ export const AdminCourses: React.FC = () => {
     difficulty_level: 'beginner',
     is_active: true
   });
+  const [isUpdating, setIsUpdating] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createFormData, setCreateFormData] = useState({
     title: '',
@@ -86,6 +87,7 @@ export const AdminCourses: React.FC = () => {
     difficulty_level: 'beginner',
     is_active: true
   });
+  const [isCreating, setIsCreating] = useState(false);
   const [createLessons, setCreateLessons] = useState<{
     id: string;
     title: string;
@@ -151,41 +153,76 @@ export const AdminCourses: React.FC = () => {
   };
 
   const handleCreateSubmit = async () => {
-    if (!createFormData.title || !createFormData.subject) {
-      alert('Please fill in all required fields');
+    if (!createFormData.title.trim() || !createFormData.subject.trim()) {
+      alert('Please fill in all required fields (Title and Subject)');
       return;
     }
+
+    // Validate lessons if any
+    for (let i = 0; i < createLessons.length; i++) {
+      const lesson = createLessons[i];
+      if (!lesson.title.trim()) {
+        alert(`Please provide a title for Lesson ${i + 1}`);
+        return;
+      }
+    }
+
     try {
-      setLoading(true);
+      setIsCreating(true);
+      
       // Insert course
-      const { data: courseData, error: courseError } = await supabase.from('courses').insert({
-        title: createFormData.title,
-        description: createFormData.description,
-        subject: createFormData.subject,
-        difficulty_level: createFormData.difficulty_level,
-        is_active: createFormData.is_active,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }).select().single();
-      if (courseError) throw courseError;
+      const { data: courseData, error: courseError } = await supabase
+        .from('courses')
+        .insert({
+          title: createFormData.title.trim(),
+          description: createFormData.description.trim(),
+          subject: createFormData.subject.trim(),
+          difficulty_level: createFormData.difficulty_level,
+          is_active: createFormData.is_active,
+          created_by: user?.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (courseError) {
+        if (courseError.code === '23505') {
+          throw new Error('A course with this title already exists. Please choose a different title.');
+        }
+        throw courseError;
+      }
 
       // Insert lessons if any
       if (createLessons.length > 0) {
         const lessonsToInsert = createLessons.map(lesson => ({
           course_id: courseData.id,
-          title: lesson.title,
-          description: lesson.description,
+          title: lesson.title.trim(),
+          description: lesson.description.trim(),
           content_type: lesson.content_type,
-          content_url: lesson.content_url,
-          duration_minutes: lesson.duration_minutes,
-          order_index: lesson.order_index
+          content_html: lesson.content_url ? `<p>Content URL: ${lesson.content_url}</p>` : '',
+          content: lesson.content_url ? { url: lesson.content_url, type: lesson.content_type } : {},
+          estimated_duration_minutes: lesson.duration_minutes || 5,
+          order_index: lesson.order_index,
+          is_published: true
         }));
-        const { error: lessonsError } = await supabase.from('lessons').insert(lessonsToInsert);
-        if (lessonsError) throw lessonsError;
+        
+        const { error: lessonsError } = await supabase
+          .from('enhanced_lessons')
+          .insert(lessonsToInsert);
+        
+        if (lessonsError) {
+          console.error('Error creating lessons:', lessonsError);
+          // Course was created, but lessons failed - inform user
+          alert(`Course created successfully, but some lessons failed to save: ${lessonsError.message}`);
+        }
       }
 
       // Refresh courses list
       await fetchCourses();
+
+      // Show success message
+      alert(`Course "${createFormData.title}" created successfully!`);
 
       // Reset form and close modal
       setCreateFormData({
@@ -197,11 +234,12 @@ export const AdminCourses: React.FC = () => {
       });
       setCreateLessons([]);
       setShowCreateModal(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating course:', error);
-      alert('Failed to create course');
+      const errorMessage = error.message || error.details || 'An unexpected error occurred while creating the course.';
+      alert(`Failed to create course: ${errorMessage}`);
     } finally {
-      setLoading(false);
+      setIsCreating(false);
     }
   };
 
@@ -229,11 +267,10 @@ export const AdminCourses: React.FC = () => {
         .select(`
           *,
           created_by_user:users!courses_created_by_fkey(full_name),
-          enhanced_lesson_count:enhanced_lessons(count),
-          quiz_count:enhanced_quizzes(count),
-          enrollment_count:course_enrollments(count)
+          enhanced_lesson_count:enhanced_lessons!course_id(count),
+          quiz_count:enhanced_quizzes!course_id(count),
+          enrollment_count:course_enrollments!course_id(count)
         `)
-        .eq('is_active', true)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -244,7 +281,7 @@ export const AdminCourses: React.FC = () => {
           ...course,
           difficulty_level: course.difficulty_level as string,
           created_by_name: course.created_by_user?.full_name || 'Admin User',
-          lesson_count: course.enhanced_lesson_count?.[0]?.count || course.total_lessons || 0,
+          lesson_count: course.enhanced_lesson_count?.[0]?.count || 0,
           quiz_count: course.quiz_count?.[0]?.count || 0,
           enrollment_count: course.enrollment_count?.[0]?.count || 0,
           has_rsl_support: course.has_rsl_support || false,
@@ -302,19 +339,33 @@ export const AdminCourses: React.FC = () => {
 
   const confirmDelete = async () => {
     if (!courseToDelete) return;
+    
     try {
       setLoading(true);
+      
       const success = await deleteCourse(courseToDelete);
+      
       if (success) {
+        // Find the course name for the success message
+        const courseToDeleteObj = courses.find(c => c.id === courseToDelete);
+        const courseName = courseToDeleteObj?.title || 'Unknown Course';
+        
         setCourses(courses.filter(course => course.id !== courseToDelete));
+        
         // If we're deleting the currently selected course, close the modal
         if (selectedCourse && selectedCourse.id === courseToDelete) {
           setShowCourseModal(false);
           setSelectedCourse(null);
         }
+        
+        alert(`Course "${courseName}" deleted successfully.`);
+      } else {
+        throw new Error('Delete operation failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting course:', error);
+      const errorMessage = error.message || 'An unexpected error occurred while deleting the course.';
+      alert(`Failed to delete course: ${errorMessage}`);
     } finally {
       setShowDeleteModal(false);
       setCourseToDelete(null);
@@ -332,27 +383,43 @@ export const AdminCourses: React.FC = () => {
 
   const toggleCourseStatus = async (courseId: string, currentStatus: boolean) => {
     try {
-      const {
-        error
-      } = await supabase.from('courses').update({
-        is_active: !currentStatus,
-        updated_at: new Date().toISOString()
-      }).eq('id', courseId);
+      const newStatus = !currentStatus;
+      
+      const { error } = await supabase
+        .from('courses')
+        .update({
+          is_active: newStatus,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', courseId);
+      
       if (error) throw error;
+      
       // Update local state
-      setCourses(courses.map(course => course.id === courseId ? {
-        ...course,
-        is_active: !currentStatus
-      } : course));
+      setCourses(courses.map(course => 
+        course.id === courseId 
+          ? { ...course, is_active: newStatus, updated_at: new Date().toISOString() }
+          : course
+      ));
+      
       // Update selected course if it's the one being toggled
       if (selectedCourse && selectedCourse.id === courseId) {
         setSelectedCourse({
           ...selectedCourse,
-          is_active: !currentStatus
+          is_active: newStatus,
+          updated_at: new Date().toISOString()
         });
       }
-    } catch (error) {
+      
+      const courseObj = courses.find(c => c.id === courseId);
+      const courseName = courseObj?.title || 'Course';
+      const statusText = newStatus ? 'activated' : 'deactivated';
+      alert(`${courseName} has been ${statusText} successfully.`);
+      
+    } catch (error: any) {
       console.error('Error toggling course status:', error);
+      const errorMessage = error.message || 'An unexpected error occurred while updating the course status.';
+      alert(`Failed to update course status: ${errorMessage}`);
     }
   };
 
@@ -379,39 +446,60 @@ export const AdminCourses: React.FC = () => {
 
   const handleEditSubmit = async () => {
     if (!selectedCourse) return;
+    
+    if (!editFormData.title.trim() || !editFormData.subject.trim()) {
+      alert('Please fill in all required fields (Title and Subject)');
+      return;
+    }
+
     try {
-      const {
-        error
-      } = await supabase.from('courses').update({
-        title: editFormData.title,
-        description: editFormData.description,
-        subject: editFormData.subject,
+      setIsUpdating(true);
+      
+      const { error } = await supabase
+        .from('courses')
+        .update({
+          title: editFormData.title.trim(),
+          description: editFormData.description.trim(),
+          subject: editFormData.subject.trim(),
+          difficulty_level: editFormData.difficulty_level,
+          is_active: editFormData.is_active,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedCourse.id);
+      
+      if (error) {
+        if (error.code === '23505') {
+          throw new Error('A course with this title already exists. Please choose a different title.');
+        }
+        throw error;
+      }
+
+      // Update local state
+      const updatedCourse = {
+        ...selectedCourse,
+        title: editFormData.title.trim(),
+        description: editFormData.description.trim(),
+        subject: editFormData.subject.trim(),
         difficulty_level: editFormData.difficulty_level,
         is_active: editFormData.is_active,
         updated_at: new Date().toISOString()
-      }).eq('id', selectedCourse.id);
-      if (error) throw error;
-      // Update local state
-      setCourses(courses.map(course => course.id === selectedCourse.id ? {
-        ...course,
-        title: editFormData.title,
-        description: editFormData.description,
-        subject: editFormData.subject,
-        difficulty_level: editFormData.difficulty_level,
-        is_active: editFormData.is_active
-      } : course));
+      };
+
+      setCourses(courses.map(course => 
+        course.id === selectedCourse.id ? updatedCourse : course
+      ));
+      
       // Update selected course
-      setSelectedCourse({
-        ...selectedCourse,
-        title: editFormData.title,
-        description: editFormData.description,
-        subject: editFormData.subject,
-        difficulty_level: editFormData.difficulty_level,
-        is_active: editFormData.is_active
-      });
+      setSelectedCourse(updatedCourse);
       setIsEditing(false);
-    } catch (error) {
+      
+      alert('Course updated successfully!');
+    } catch (error: any) {
       console.error('Error updating course:', error);
+      const errorMessage = error.message || error.details || 'An unexpected error occurred while updating the course.';
+      alert(`Failed to update course: ${errorMessage}`);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -544,10 +632,27 @@ export const AdminCourses: React.FC = () => {
               </div>
             </div>
             <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-              <button type="button" onClick={handleCreateSubmit} className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm">
-                Create Course
+              <button 
+                type="button" 
+                onClick={handleCreateSubmit} 
+                disabled={isCreating}
+                className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isCreating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                    Creating...
+                  </>
+                ) : (
+                  'Create Course'
+                )}
               </button>
-              <button type="button" onClick={() => setShowCreateModal(false)} className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+              <button 
+                type="button" 
+                onClick={() => setShowCreateModal(false)} 
+                disabled={isCreating}
+                className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+              >
                 Cancel
               </button>
             </div>
@@ -924,9 +1029,10 @@ export const AdminCourses: React.FC = () => {
                       </span>
                     </div>
                     {/* Description */}
-                    <p className="text-sm text-gray-600">
-                      {selectedCourse.description}
+                    <p className="text-sm text-gray-600 min-h-[20px]">
+                      {selectedCourse.description || 'No description provided'}
                     </p>
+                    
                     {/* Course Details */}
                     <div className="grid grid-cols-2 gap-4 text-sm">
                       <div className="bg-gray-50 p-3 rounded-lg">
@@ -934,7 +1040,7 @@ export const AdminCourses: React.FC = () => {
                           Subject
                         </div>
                         <div className="font-medium text-gray-800">
-                          {selectedCourse.subject}
+                          {selectedCourse.subject || 'No subject'}
                         </div>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
@@ -942,7 +1048,10 @@ export const AdminCourses: React.FC = () => {
                           Difficulty
                         </div>
                         <div className="font-medium text-gray-800">
-                          {selectedCourse.difficulty_level.charAt(0).toUpperCase() + selectedCourse.difficulty_level.slice(1)}
+                          {selectedCourse.difficulty_level 
+                            ? selectedCourse.difficulty_level.charAt(0).toUpperCase() + selectedCourse.difficulty_level.slice(1)
+                            : 'Not specified'
+                          }
                         </div>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
@@ -968,18 +1077,48 @@ export const AdminCourses: React.FC = () => {
                           {selectedCourse.quiz_count || 0}
                         </div>
                       </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-500 uppercase">
+                          Enrollments
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {selectedCourse.enrollment_count || 0}
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 p-3 rounded-lg">
+                        <div className="text-xs text-gray-500 uppercase">
+                          Created By
+                        </div>
+                        <div className="font-medium text-gray-800">
+                          {selectedCourse.created_by_name || 'Unknown'}
+                        </div>
+                      </div>
                     </div>
                     {/* Dates */}
-                    <div className="flex justify-between text-xs text-gray-500 pt-2">
+                    <div className="flex justify-between text-xs text-gray-500 pt-2 border-t border-gray-100">
                       <div className="flex items-center">
                         <CalendarIcon size={14} className="mr-1" />
                         Created:{' '}
-                        {new Date(selectedCourse.created_at).toLocaleDateString()}
+                        {selectedCourse.created_at 
+                          ? new Date(selectedCourse.created_at).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })
+                          : 'Unknown'
+                        }
                       </div>
                       <div className="flex items-center">
                         <ClockIcon size={14} className="mr-1" />
                         Updated:{' '}
-                        {new Date(selectedCourse.updated_at).toLocaleDateString()}
+                        {selectedCourse.updated_at 
+                          ? new Date(selectedCourse.updated_at).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            })
+                          : 'Unknown'
+                        }
                       </div>
                     </div>
                   </div>}
@@ -987,10 +1126,27 @@ export const AdminCourses: React.FC = () => {
               {/* Modal Footer */}
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
                 {isEditing ? <>
-                    <button type="button" className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={handleEditSubmit}>
-                      Save Changes
+                    <button 
+                      type="button" 
+                      className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" 
+                      onClick={handleEditSubmit}
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Changes'
+                      )}
                     </button>
-                    <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={handleEditCancel}>
+                    <button 
+                      type="button" 
+                      className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed" 
+                      onClick={handleEditCancel}
+                      disabled={isUpdating}
+                    >
                       Cancel
                     </button>
                   </> : <>

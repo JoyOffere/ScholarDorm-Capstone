@@ -91,10 +91,10 @@ export const AdminQuizManagement: React.FC = () => {
     try {
       setLoading(true);
       // Start with the base query
-      let query = supabase.from('quizzes').select(`
+      let query = supabase.from('enhanced_quizzes').select(`
           *,
-          lesson:lessons(id, title, course_id),
-          questions:quiz_questions(id)
+          lesson:enhanced_lessons(id, title, course_id),
+          questions:enhanced_quiz_questions(id)
         `).order('created_at', {
         ascending: false
       });
@@ -158,12 +158,12 @@ export const AdminQuizManagement: React.FC = () => {
       const {
         data,
         error
-      } = await supabase.from('lessons').select(`
+      } = await supabase.from('enhanced_lessons').select(`
           id,
           title,
           course_id,
           courses(title)
-        `).order('title', {
+        `).eq('is_published', true).order('title', {
         ascending: true
       });
       if (error) throw error;
@@ -175,6 +175,8 @@ export const AdminQuizManagement: React.FC = () => {
       setLessons(lessonsWithCourses);
     } catch (error) {
       console.error('Error fetching lessons:', error);
+      // Set empty array on error to avoid undefined issues
+      setLessons([]);
     }
   };
   const handleSearch = (e: React.FormEvent) => {
@@ -192,12 +194,12 @@ export const AdminQuizManagement: React.FC = () => {
       // First delete all questions associated with the quiz
       const {
         error: questionsError
-      } = await supabase.from('quiz_questions').delete().eq('quiz_id', quizToDelete);
+      } = await supabase.from('enhanced_quiz_questions').delete().eq('quiz_id', quizToDelete);
       if (questionsError) throw questionsError;
       // Then delete the quiz itself
       const {
         error: quizError
-      } = await supabase.from('quizzes').delete().eq('id', quizToDelete);
+      } = await supabase.from('enhanced_quizzes').delete().eq('id', quizToDelete);
       if (quizError) throw quizError;
       // Update local state
       setQuizzes(quizzes.filter(quiz => quiz.id !== quizToDelete));
@@ -223,7 +225,7 @@ export const AdminQuizManagement: React.FC = () => {
     try {
       const {
         error
-      } = await supabase.from('quizzes').update({
+      } = await supabase.from('enhanced_quizzes').update({
         is_published: !currentStatus,
         updated_at: new Date().toISOString()
       }).eq('id', quizId);
@@ -266,7 +268,7 @@ export const AdminQuizManagement: React.FC = () => {
     try {
       const {
         error
-      } = await supabase.from('quizzes').update({
+      } = await supabase.from('enhanced_quizzes').update({
         title: editFormData.title,
         description: editFormData.description,
         passing_score: editFormData.passing_score,
@@ -336,8 +338,15 @@ export const AdminQuizManagement: React.FC = () => {
     });
   };
   const handleCreateSubmit = async () => {
-    if (!createFormData.title || !createFormData.lesson_id) {
-      alert('Please fill in all required fields');
+    if (!createFormData.title.trim() || !createFormData.lesson_id) {
+      alert('Please fill in all required fields (Title and Lesson)');
+      return;
+    }
+
+    // Validate that the lesson exists
+    const selectedLesson = lessons.find(l => l.id === createFormData.lesson_id);
+    if (!selectedLesson) {
+      alert('Selected lesson not found. Please refresh and try again.');
       return;
     }
 
@@ -357,21 +366,43 @@ export const AdminQuizManagement: React.FC = () => {
     try {
       setLoading(true);
 
+      // Get the course_id from the selected lesson
+      const selectedLesson = lessons.find(l => l.id === createFormData.lesson_id);
+      
+      // Get course_id for the lesson
+      const { data: lessonData, error: lessonError } = await supabase
+        .from('enhanced_lessons')
+        .select('course_id')
+        .eq('id', createFormData.lesson_id)
+        .single();
+
+      if (lessonError) {
+        throw new Error('Failed to find the selected lesson. Please refresh and try again.');
+      }
+
       // Create the quiz first
       const {
         data: quizData,
         error: quizError
-      } = await supabase.from('quizzes').insert({
-        title: createFormData.title,
-        description: createFormData.description,
+      } = await supabase.from('enhanced_quizzes').insert({
+        title: createFormData.title.trim(),
+        description: createFormData.description.trim(),
         lesson_id: createFormData.lesson_id,
+        course_id: lessonData.course_id,
         passing_score: createFormData.passing_score,
         is_published: createFormData.is_published,
+        quiz_type: 'assessment',
+        max_attempts: 3,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }).select().single();
 
-      if (quizError) throw quizError;
+      if (quizError) {
+        if (quizError.code === '23505') {
+          throw new Error('A quiz with this title already exists for this lesson. Please choose a different title.');
+        }
+        throw quizError;
+      }
 
       // Create questions if any
       if (createQuestions.length > 0) {
@@ -392,8 +423,15 @@ export const AdminQuizManagement: React.FC = () => {
         }));
 
         const { error: questionsError } = await supabase
-          .from('quiz_questions')
-          .insert(questionsToInsert);
+          .from('enhanced_quiz_questions')
+          .insert(questionsToInsert.map(q => ({
+            ...q,
+            question_text: q.question,
+            difficulty_level: q.difficulty,
+            // Remove the old 'question' and 'difficulty' fields
+            question: undefined,
+            difficulty: undefined
+          })));
 
         if (questionsError) throw questionsError;
       }
@@ -405,6 +443,9 @@ export const AdminQuizManagement: React.FC = () => {
         question_count: createQuestions.length
       }, ...quizzes]);
 
+      // Show success message
+      alert(`Quiz "${createFormData.title}" created successfully!`);
+
       // Reset form and close modal
       setCreateFormData({
         title: '',
@@ -415,9 +456,13 @@ export const AdminQuizManagement: React.FC = () => {
       });
       setCreateQuestions([]);
       setShowCreateModal(false);
-    } catch (error) {
+      
+      // Refresh quizzes to ensure consistency
+      await fetchQuizzes();
+    } catch (error: any) {
       console.error('Error creating quiz:', error);
-      alert('Failed to create quiz');
+      const errorMessage = error.message || error.details || 'An unexpected error occurred while creating the quiz.';
+      alert(`Failed to create quiz: ${errorMessage}`);
     } finally {
       setLoading(false);
     }
