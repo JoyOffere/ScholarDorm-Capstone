@@ -171,14 +171,17 @@ export const AdminQuizManagement: React.FC = () => {
         lessonMap[lesson.id] = lesson;
       });
 
-      // Get course titles for each unique course_id
-      const courseIds = [...new Set(lessonsData.map(lesson => lesson.course_id))];
+      // Get course titles - we need courses from both lessons and ALL quizzes (not just filtered ones)
+      const courseIdsFromLessons = lessonsData.map(lesson => lesson.course_id);
+      const courseIdsFromQuizzes = quizData.map(quiz => quiz.course_id).filter(id => id); // Use original quizData, not filtered
+      const allCourseIds = [...new Set([...courseIdsFromLessons, ...courseIdsFromQuizzes])];
+      
       let coursesData: any[] = [];
-      if (courseIds.length > 0) {
+      if (allCourseIds.length > 0) {
         const {
           data: courses,
           error: coursesError
-        } = await supabase.from('courses').select('id, title').in('id', courseIds);
+        } = await supabase.from('courses').select('id, title').in('id', allCourseIds);
         if (coursesError) throw coursesError;
         coursesData = courses || [];
       }
@@ -198,6 +201,17 @@ export const AdminQuizManagement: React.FC = () => {
           : quiz.course_id 
             ? courseMap[quiz.course_id] 
             : null;
+
+        // Debug logging for unknown courses
+        if (!course) {
+          console.warn('Quiz missing course info:', {
+            quiz: quiz.title,
+            lesson_id: quiz.lesson_id,
+            course_id: quiz.course_id,
+            lesson_course_id: lesson?.course_id,
+            available_courses: Object.keys(courseMap)
+          });
+        }
         
         return {
           ...quiz,
