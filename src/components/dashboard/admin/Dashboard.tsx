@@ -128,7 +128,7 @@ export const AdminDashboard: React.FC = () => {
       ] = await Promise.all([
         supabase.from('users').select('*', { count: 'exact', head: true }),
         supabase.from('courses').select('*', { count: 'exact', head: true }),
-        supabase.from('quizzes').select('*', { count: 'exact', head: true }),
+        supabase.from('enhanced_quizzes').select('*', { count: 'exact', head: true }),
         supabase
           .from('users')
           .select('*', { count: 'exact', head: true })

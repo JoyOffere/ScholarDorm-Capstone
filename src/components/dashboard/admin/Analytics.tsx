@@ -199,14 +199,14 @@ export const AdminAnalytics: React.FC = () => {
       const {
         data: lessonsData,
         error: lessonsError
-      } = await supabase.from('lessons').select('id', {
+      } = await supabase.from('enhanced_lessons').select('id', {
         count: 'exact'
       });
       // Total quizzes
       const {
         data: quizzesData,
         error: quizzesError
-      } = await supabase.from('quizzes').select('id', {
+      } = await supabase.from('enhanced_quizzes').select('id', {
         count: 'exact'
       });
       // Total badges
@@ -466,13 +466,13 @@ export const AdminAnalytics: React.FC = () => {
       const {
         data: quizzesData,
         error: quizzesError
-      } = await supabase.from('quizzes').select('id', {
+      } = await supabase.from('enhanced_quizzes').select('id', {
         count: 'exact'
       });
       const {
         data: lessonsData,
         error: lessonsError
-      } = await supabase.from('lessons').select('id', {
+      } = await supabase.from('enhanced_lessons').select('id', {
         count: 'exact'
       });
       const {
@@ -573,7 +573,7 @@ export const AdminAnalytics: React.FC = () => {
       const {
         data: quizzesData,
         error: quizzesError
-      } = await supabase.from('quizzes').select('id, title').order('title');
+      } = await supabase.from('enhanced_quizzes').select('id, title').order('title');
       if (quizzesError) throw quizzesError;
       const quizzesWithStats = [];
       if (quizzesData) {

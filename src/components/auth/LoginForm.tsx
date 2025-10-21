@@ -25,18 +25,34 @@ export const LoginForm: React.FC = () => {
   const [loginError, setLoginError] = useState<string | null>(null);
   const [showRSLModal, setShowRSLModal] = useState(false);
   const [authUserId, setAuthUserId] = useState<string | undefined>(undefined);
+  const [retryCount, setRetryCount] = useState(0);
   const navigate = useNavigate();
   const { user, session } = useAuth();
 
   // Handle navigation after successful login
   useEffect(() => {
-    if (session && user?.role && isLoading) {
+    if (session && user && isLoading) {
       console.log('LoginForm: Auth successful, navigating to dashboard');
       setIsLoading(false);
       const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
       navigate(redirectPath, { replace: true });
     }
   }, [session, user, isLoading, navigate]);
+
+  // Add timeout for login process to prevent hanging
+  useEffect(() => {
+    if (isLoading) {
+      const timeout = setTimeout(() => {
+        if (isLoading && !session) {
+          console.warn('LoginForm: Login timeout, stopping loading state');
+          setIsLoading(false);
+          setLoginError('Login is taking longer than expected. Please try again.');
+        }
+      }, 10000); // 10 second timeout
+
+      return () => clearTimeout(timeout);
+    }
+  }, [isLoading, session]);
 
   const {
     register,
@@ -66,7 +82,7 @@ export const LoginForm: React.FC = () => {
     setLoginError(null);
     
     try {
-      // Sign in with Supabase
+      // Sign in with Supabase - this will trigger AuthContext updates
       const { data: authData, error } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
@@ -76,43 +92,37 @@ export const LoginForm: React.FC = () => {
       
       if (authData?.user) {
         setAuthUserId(authData.user.id);
+        setRetryCount(0); // Reset retry count on success
+        console.log('LoginForm: Login successful, AuthContext will handle the rest');
         
-        // Check if user exists in our users table
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', authData.user.id)
-          .single();
-        
-        // Create user record if it doesn't exist
-        if (userError && userError.code === 'PGRST116') {
-          try {
-            await supabase.from('users').insert({
-              id: authData.user.id,
-              email: data.email,
-              full_name: data.email.split('@')[0],
-              role: 'student',
-              status: 'active',
-              avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
-                data.email.split('@')[0],
-              )}&background=0D8ABC&color=fff`,
-              streak_count: 0,
-              longest_streak: 0,
-              email_verified: true,
-            });
-            console.log('LoginForm: Created new user record');
-          } catch (insertError) {
-            console.warn('LoginForm: Failed to create user record:', insertError);
-          }
-        }
-        
-        // Let AuthContext handle the navigation via auth state change
-        // Don't manually navigate here to avoid race conditions
-        console.log('LoginForm: Login successful, waiting for AuthContext to handle navigation');
+        // AuthContext will handle user record creation and navigation
+        // Just wait for the auth state change
       }
     } catch (error: any) {
       console.error('LoginForm: Login error:', error);
-      setLoginError('Invalid email or password. Please try again.');
+      
+      // Handle specific error types for better UX
+      if (error.message?.includes('Invalid login credentials')) {
+        setLoginError('Invalid email or password. Please check your credentials and try again.');
+      } else if (error.message?.includes('Email not confirmed')) {
+        setLoginError('Please check your email and confirm your account before signing in.');
+      } else if (error.message?.includes('Too many requests')) {
+        setLoginError('Too many login attempts. Please wait a moment and try again.');
+      } else if (error.message?.includes('Network')) {
+        // Network error - offer retry option
+        if (retryCount < 2) {
+          setRetryCount(prev => prev + 1);
+          setLoginError(`Connection error. Retrying... (Attempt ${retryCount + 1}/3)`);
+          // Auto-retry after 1 second
+          setTimeout(() => onSubmit(data), 1000);
+          return;
+        } else {
+          setLoginError('Network connection failed. Please check your internet and try again.');
+        }
+      } else {
+        setLoginError('Unable to sign in. Please check your connection and try again.');
+      }
+      
       setIsLoading(false);
     }
     // Note: Don't set isLoading(false) on success - let the auth state change handle it

@@ -370,7 +370,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       console.log('AuthContext: Auth state changed:', event);
       
       try {
-        if (newSession?.user) {
+          if (newSession?.user) {
           // Preserve existing role if available, otherwise fetch from database
           let userRole: 'student' | 'admin' = user?.role || 'student';
           
@@ -384,13 +384,37 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
               
               if (!roleError && roleData) {
                 userRole = roleData.role as 'student' | 'admin';
+              } else if (roleError?.code === 'PGRST116') {
+                // User doesn't exist in our users table - create them in background
+                console.log('AuthContext: Creating new user record for:', newSession.user.email);
+                
+                // Don't await this - let it happen in background to avoid delays
+                supabase.from('users').insert({
+                  id: newSession.user.id,
+                  email: newSession.user.email,
+                  full_name: newSession.user.email?.split('@')[0] || 'User',
+                  role: 'student',
+                  status: 'active',
+                  avatar_url: `https://ui-avatars.com/api/?name=${encodeURIComponent(
+                    newSession.user.email?.split('@')[0] || 'User',
+                  )}&background=0D8ABC&color=fff`,
+                  streak_count: 0,
+                  longest_streak: 0,
+                  email_verified: true,
+                }).then(({ error: insertError }) => {
+                  if (insertError) {
+                    console.warn('AuthContext: Failed to create user record:', insertError);
+                  } else {
+                    console.log('AuthContext: User record created successfully');
+                  }
+                });
+                
+                userRole = 'student'; // Default role while creation happens in background
               }
             } catch (roleErr) {
               console.warn('AuthContext: Failed to fetch user role on auth change:', roleErr);
             }
-          }
-          
-          const userData: User = {
+          }          const userData: User = {
             id: newSession.user.id,
             email: newSession.user.email,
             role: userRole
