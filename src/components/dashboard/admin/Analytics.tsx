@@ -299,7 +299,7 @@ export const AdminAnalytics: React.FC = () => {
       const {
         data: attemptsData,
         error: attemptsError
-      } = await supabase.from('quiz_attempts').select('id, percentage', {
+      } = await supabase.from('enhanced_quiz_attempts').select('id, percentage', {
         count: 'exact'
       });
       if (enrollmentsError || periodEnrollmentsError || prevPeriodEnrollmentsError || completionsError || periodCompletionsError || prevPeriodCompletionsError || attemptsError) {
@@ -582,10 +582,10 @@ export const AdminAnalytics: React.FC = () => {
           const {
             data: attemptsData,
             error: attemptsError
-          } = await supabase.from('quiz_attempts').select('id, percentage, passed').eq('quiz_id', quiz.id);
+          } = await supabase.from('enhanced_quiz_attempts').select('id, percentage, is_passed').eq('quiz_id', quiz.id);
           if (attemptsError) continue;
           const attempts = attemptsData?.length || 0;
-          const passedCount = attemptsData?.filter(a => a.passed)?.length || 0;
+          const passedCount = attemptsData?.filter(a => a.is_passed)?.length || 0;
           const passRate = attempts > 0 ? Math.round(passedCount / attempts * 100) : 0;
           // Calculate average score
           const totalPercentage = attemptsData?.reduce((sum, a) => sum + (a.percentage || 0), 0) || 0;

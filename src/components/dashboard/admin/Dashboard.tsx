@@ -140,7 +140,7 @@ export const AdminDashboard: React.FC = () => {
           .eq('completed', true),
         supabase.from('user_badges').select('*', { count: 'exact', head: true }),
         supabase
-          .from('quiz_attempts')
+          .from('enhanced_quiz_attempts')
           .select('percentage'),
         supabase.from('games').select('*', { count: 'exact', head: true }),
         supabase.from('posts').select('*', { count: 'exact', head: true }),

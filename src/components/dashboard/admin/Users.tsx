@@ -169,7 +169,7 @@ export const AdminUsers: React.FC = () => {
           .in('user_id', userIds);
 
         const attemptsPromise = supabase
-          .from('quiz_attempts')
+          .from('enhanced_quiz_attempts')
           .select('user_id, percentage', { count: 'exact' })
           .in('user_id', userIds);
 

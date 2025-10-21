@@ -53,6 +53,9 @@ import { SessionDebugPage } from './components/debug/SessionDebugPage';
 // Main App Content Component that uses AuthContext
 const AppContent: React.FC = () => {
   const { user, session, loading } = useAuth();
+
+  // Debug: Log auth state changes
+  console.log('AppContent: Auth state - user:', user?.id, 'role:', user?.role, 'session:', !!session, 'loading:', loading);
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -76,22 +79,27 @@ const AppContent: React.FC = () => {
 
   // Auth Guard component to protect routes
   const RequireAuth = ({ children }: { children: React.ReactNode }) => {
+    console.log('RequireAuth: session exists?', !!session, 'user exists?', !!user);
     if (!session) {
+      console.log('RequireAuth: No session, redirecting to /');
       return <Navigate to="/" replace />;
     }
     return <>{children}</>;
   };
 
   // Role Guard component to protect role-specific routes
-  const RequireRole = ({ 
-    children, 
-    requiredRole 
-  }: { 
-    children: React.ReactNode; 
-    requiredRole: 'student' | 'admin' 
+  const RequireRole = ({
+    children,
+    requiredRole
+  }: {
+    children: React.ReactNode;
+    requiredRole: 'student' | 'admin'
   }) => {
+    console.log('RequireRole: session?', !!session, 'user?', !!user, 'user.role?', user?.role, 'requiredRole:', requiredRole);
+
     // If not signed in, redirect to public root
     if (!session || !user) {
+      console.log('RequireRole: No session or user, redirecting to /');
       return <Navigate to="/" replace />;
     }
 
@@ -120,35 +128,44 @@ const AppContent: React.FC = () => {
       
       <Routes>
         {/* Public routes */}
-        <Route 
-          path="/" 
+        <Route
+          path="/"
           element={
             session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              (() => {
+                console.log('Root route: Redirecting authenticated user to dashboard, role:', user.role);
+                return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
+              })()
             ) : (
               <Landing />
             )
-          } 
+          }
         />
-        <Route 
-          path="/login" 
+        <Route
+          path="/login"
           element={
             session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              (() => {
+                console.log('Login route: User already authenticated, redirecting to dashboard, role:', user.role);
+                return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
+              })()
             ) : (
               <LoginPage />
             )
-          } 
+          }
         />
-        <Route 
-          path="/signup" 
+        <Route
+          path="/signup"
           element={
             session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              (() => {
+                console.log('Signup route: User already authenticated, redirecting to dashboard, role:', user.role);
+                return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
+              })()
             ) : (
               <SignupPage />
             )
-          } 
+          }
         />
 
         {/* Landing page routes */}

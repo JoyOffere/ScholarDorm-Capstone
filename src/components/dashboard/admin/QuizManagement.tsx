@@ -73,6 +73,15 @@ export const AdminQuizManagement: React.FC = () => {
     auto_repeat: false,
     sign_descriptions: true,
   });
+
+  // Preview modal states
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewQuiz, setPreviewQuiz] = useState<Quiz | null>(null);
+  const [previewQuestions, setPreviewQuestions] = useState<any[]>([]);
+  const [previewCurrentQuestion, setPreviewCurrentQuestion] = useState(0);
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, any>>({});
+  const [previewShowResults, setPreviewShowResults] = useState(false);
+
   useEffect(() => {
     fetchQuizzes();
     fetchCourses();
@@ -611,6 +620,63 @@ export const AdminQuizManagement: React.FC = () => {
       setLoading(false);
     }
   };
+
+  // Preview modal functions
+  const handlePreviewQuiz = async (quiz: Quiz) => {
+    try {
+      setPreviewQuiz(quiz);
+      // Fetch quiz questions
+      const { data: questions, error } = await supabase
+        .from('enhanced_quiz_questions')
+        .select('*')
+        .eq('quiz_id', quiz.id)
+        .order('order_index', { ascending: true });
+      
+      if (error) throw error;
+      
+      setPreviewQuestions(questions || []);
+      setPreviewCurrentQuestion(0);
+      setPreviewAnswers({});
+      setPreviewShowResults(false);
+      setShowPreviewModal(true);
+    } catch (error) {
+      console.error('Error loading quiz preview:', error);
+      alert('Failed to load quiz preview');
+    }
+  };
+
+  const handlePreviewAnswer = (questionId: string, answer: any) => {
+    setPreviewAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
+  };
+
+  const handlePreviewNext = () => {
+    if (previewCurrentQuestion < previewQuestions.length - 1) {
+      setPreviewCurrentQuestion(prev => prev + 1);
+    }
+  };
+
+  const handlePreviewPrevious = () => {
+    if (previewCurrentQuestion > 0) {
+      setPreviewCurrentQuestion(prev => prev - 1);
+    }
+  };
+
+  const handlePreviewSubmit = () => {
+    setPreviewShowResults(true);
+  };
+
+  const closePreviewModal = () => {
+    setShowPreviewModal(false);
+    setPreviewQuiz(null);
+    setPreviewQuestions([]);
+    setPreviewCurrentQuestion(0);
+    setPreviewAnswers({});
+    setPreviewShowResults(false);
+  };
+
   return <DashboardLayout title="Quiz Management" role="admin">
       {/* Filters and actions */}
       <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200 mb-6">
@@ -783,7 +849,10 @@ export const AdminQuizManagement: React.FC = () => {
                   }} className="text-red-600 hover:text-red-900" title="Delete quiz">
                           <TrashIcon size={16} />
                         </button>
-                        <button className="text-blue-600 hover:text-blue-900" title="Preview quiz">
+                        <button className="text-blue-600 hover:text-blue-900" title="Preview quiz" onClick={e => {
+                    e.stopPropagation();
+                    handlePreviewQuiz(quiz);
+                  }}>
                           <EyeIcon size={16} />
                         </button>
                         <button className="text-gray-500 hover:text-gray-700" title="More options">

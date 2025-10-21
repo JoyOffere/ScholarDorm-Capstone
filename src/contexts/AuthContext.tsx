@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef, ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { createAuditLog } from '../lib/supabase-utils';
 import { Session } from '@supabase/supabase-js';
@@ -128,9 +128,23 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
   const [loading, setLoading] = useState(true);
   const [daemonEvents, setDaemonEvents] = useState<SessionEvent[]>([]);
 
+  // Use refs to track initialization state synchronously
+  const initializationRef = useRef({
+    complete: false,
+    user: null as User | null,
+    session: null as Session | null
+  });
+
   useEffect(() => {
     let mounted = true;
     let initializationComplete = false;
+
+    // Reset ref on each initialization
+    initializationRef.current = {
+      complete: false,
+      user: null,
+      session: null
+    };
     
     // Session daemon event handler
     const handleDaemonEvent = (event: SessionEvent) => {
@@ -176,6 +190,13 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
           console.log('AuthContext: Restoring session from storage');
           setSession(storedData.session);
           setUser(storedData.user);
+
+          // Update ref synchronously
+          initializationRef.current = {
+            complete: true,
+            user: storedData.user,
+            session: storedData.session
+          };
 
           // Start session daemon immediately for background validation
           sessionDaemon.addEventListener(handleDaemonEvent);
@@ -264,6 +285,13 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
                 setUser(userData);
                 saveSessionToStorage(currentSession, userData);
 
+                // Update ref synchronously
+                initializationRef.current = {
+                  complete: true,
+                  user: userData,
+                  session: currentSession
+                };
+
                 // Start session daemon after successful initialization
                 sessionDaemon.addEventListener(handleDaemonEvent);
                 sessionDaemon.start();
@@ -284,6 +312,14 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
                 setSession(currentSession);
                 setUser(userData);
                 saveSessionToStorage(currentSession, userData);
+
+                // Update ref synchronously
+                initializationRef.current = {
+                  complete: true,
+                  user: userData,
+                  session: currentSession
+                };
+
                 initializationComplete = true;
               }
             }
