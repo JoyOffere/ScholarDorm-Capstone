@@ -64,7 +64,7 @@ export const QuizAttempt: React.FC = () => {
         const {
           data: existingAttempts,
           error: attemptsError
-        } = await supabase.from('quiz_attempts').select('id, answers, score, percentage, passed, completed_at').eq('user_id', user.id).eq('quiz_id', quizId).order('started_at', {
+        } = await supabase.from('enhanced_quiz_attempts').select('id, answers, score, percentage, is_passed, completed_at').eq('user_id', user.id).eq('quiz_id', quizId).order('started_at', {
           ascending: false
         }).limit(1);
         if (attemptsError) throw attemptsError;
@@ -73,21 +73,21 @@ export const QuizAttempt: React.FC = () => {
           setQuizComplete(true);
           setScore(existingAttempts[0].score);
           setPercentage(existingAttempts[0].percentage);
-          setPassed(existingAttempts[0].passed);
+          setPassed(existingAttempts[0].is_passed);
           setAnswers(existingAttempts[0].answers || {});
         }
         // Fetch quiz details
         const {
           data: quizData,
           error: quizError
-        } = await supabase.from('quizzes').select('*').eq('id', quizId).single();
+        } = await supabase.from('enhanced_quizzes').select('*').eq('id', quizId).single();
         if (quizError) throw quizError;
         setQuiz(quizData);
         // Fetch quiz questions
         const {
           data: questionData,
           error: questionError
-        } = await supabase.from('quiz_questions').select('*').eq('quiz_id', quizId).order('order_index', {
+        } = await supabase.from('enhanced_quiz_questions').select('*').eq('quiz_id', quizId).order('order_index', {
           ascending: true
         });
         if (questionError) throw questionError;
@@ -176,18 +176,27 @@ export const QuizAttempt: React.FC = () => {
       });
       const scorePercentage = Math.round(earnedPoints / totalPoints * 100);
       const hasPassed = scorePercentage >= quiz.passing_score;
+      // Get attempt number for this user and quiz
+      const { count: attemptCount } = await supabase
+        .from('enhanced_quiz_attempts')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('quiz_id', quizId);
+
       // Save attempt to database
       const {
         data: attemptData,
         error: attemptError
-      } = await supabase.from('quiz_attempts').insert({
+      } = await supabase.from('enhanced_quiz_attempts').insert({
         user_id: userId,
         quiz_id: quizId,
+        attempt_number: (attemptCount || 0) + 1,
         score: scorePercentage,
+        total_points: totalPoints,
         percentage: scorePercentage,
-        passed: hasPassed,
+        is_passed: hasPassed,
         answers,
-        time_spent_seconds: quiz.time_limit_minutes ? quiz.time_limit_minutes * 60 - (timeRemaining || 0) : null,
+        time_taken_minutes: quiz.time_limit_minutes ? Math.ceil((quiz.time_limit_minutes * 60 - (timeRemaining || 0)) / 60) : null,
         started_at: new Date().toISOString(),
         completed_at: new Date().toISOString()
       }).select();

@@ -57,10 +57,10 @@ export const StudentQuizzes: React.FC = () => {
       const {
         data: quizzesData,
         error: quizzesError
-      } = await supabase.from('quizzes').select(`
+      } = await supabase.from('enhanced_quizzes').select(`
           *,
-          lesson:lessons(title, course_id),
-          quiz_questions(count)
+          lesson:enhanced_lessons(title, course_id),
+          enhanced_quiz_questions(count)
         `).eq('is_published', true).order('created_at', {
         ascending: false
       });
@@ -80,7 +80,7 @@ export const StudentQuizzes: React.FC = () => {
       const {
         data: attemptsData,
         error: attemptsError
-      } = await supabase.from('quiz_attempts').select('quiz_id, score, completed_at').eq('user_id', userId);
+      } = await supabase.from('enhanced_quiz_attempts').select('quiz_id, score, completed_at').eq('user_id', userId);
       if (attemptsError) throw attemptsError;
       // Process quiz attempts
       const attemptsByQuizId: Record<string, {
@@ -115,7 +115,7 @@ export const StudentQuizzes: React.FC = () => {
         }
         return {
           ...quiz,
-          question_count: quiz.quiz_questions?.length || 0,
+          question_count: quiz.enhanced_quiz_questions?.length || 0,
           course_title: quiz.lesson?.course_id ? courseTitleMap[quiz.lesson.course_id] ?? 'Unknown Course' : 'Unknown Course',
           lesson_title: quiz.lesson?.title ?? 'Unknown Lesson',
           user_attempts: attempts?.count ?? 0,

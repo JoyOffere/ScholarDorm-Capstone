@@ -235,8 +235,8 @@ export const StudentDashboard: React.FC = () => {
 
       // Get quiz attempts and scores
       const quizQuery = supabase
-        .from('quiz_attempts')
-        .select('score, passed')
+        .from('enhanced_quiz_attempts')
+        .select('score, is_passed')
         .eq('user_id', userId);
 
       const { data: quizAttempts, error: quizError } = signal

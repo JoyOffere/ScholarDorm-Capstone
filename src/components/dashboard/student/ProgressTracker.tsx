@@ -56,9 +56,9 @@ export const ProgressTracker: React.FC<ProgressTrackerProps> = ({
       const {
         data: quizData,
         error: quizError
-      } = await supabase.from('quiz_attempts').select('passed, score').eq('user_id', userId);
+      } = await supabase.from('enhanced_quiz_attempts').select('is_passed, score').eq('user_id', userId);
       if (quizError) throw quizError;
-      const passedQuizzes = quizData?.filter(quiz => quiz.passed).length || 0;
+      const passedQuizzes = quizData?.filter(quiz => quiz.is_passed).length || 0;
       const totalPoints = quizData?.reduce((sum, quiz) => sum + quiz.score, 0) || 0;
       // Get last activity
       const {

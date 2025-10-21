@@ -79,6 +79,12 @@ export const AdminQuizManagement: React.FC = () => {
     fetchLessons();
     loadRSLSettings();
   }, []);
+
+  // Refetch quizzes when filters change
+  useEffect(() => {
+    fetchQuizzes();
+  }, [courseFilter, statusFilter, searchTerm]);
+
   const loadRSLSettings = async () => {
     try {
       const settings = await RSLService.getAccessibilitySettings(user?.id || '');
@@ -90,48 +96,116 @@ export const AdminQuizManagement: React.FC = () => {
   const fetchQuizzes = async () => {
     try {
       setLoading(true);
-      // Start with the base query
-      let query = supabase.from('enhanced_quizzes').select(`
-          *,
-          lesson:enhanced_lessons(id, title, course_id),
-          questions:enhanced_quiz_questions(id)
-        `).order('created_at', {
+      // Start with the base query for quizzes
+      let query = supabase.from('enhanced_quizzes').select('*').order('created_at', {
         ascending: false
       });
-      // Apply filters
-      if (courseFilter) {
-        query = query.eq('lesson.course_id', courseFilter);
-      }
+      
+      // Apply status filter first
       if (statusFilter !== null) {
         query = query.eq('is_published', statusFilter);
       }
       if (searchTerm) {
         query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
+      
       const {
         data: quizData,
-        error
+        error: quizError
       } = await query;
-      if (error) throw error;
-      // Get course titles for each quiz
-      const enhancedQuizzes = await Promise.all((quizData || []).map(async (quiz: any) => {
-        if (!quiz.lesson || !quiz.lesson.course_id) {
-          return {
-            ...quiz,
-            course_title: 'Unknown Course',
-            question_count: quiz.questions ? quiz.questions.length : 0
-          };
-        }
-        // Get course title
+      if (quizError) throw quizError;
+      
+      if (!quizData || quizData.length === 0) {
+        setQuizzes([]);
+        return;
+      }
+
+      // Get all lesson data separately
+      const lessonIds = quizData.map(quiz => quiz.lesson_id).filter(id => id);
+      let lessonsData: any[] = [];
+      if (lessonIds.length > 0) {
         const {
-          data: courseData
-        } = await supabase.from('courses').select('title').eq('id', quiz.lesson.course_id).single();
+          data: lessons,
+          error: lessonsError
+        } = await supabase.from('enhanced_lessons').select('id, title, course_id').in('id', lessonIds);
+        if (lessonsError) throw lessonsError;
+        lessonsData = lessons || [];
+      }
+
+      // Get quiz questions count
+      const quizIds = quizData.map(quiz => quiz.id);
+      const {
+        data: questionsData,
+        error: questionsError
+      } = await supabase.from('enhanced_quiz_questions').select('id, quiz_id').in('quiz_id', quizIds);
+      if (questionsError) throw questionsError;
+
+      // Group questions by quiz_id
+      const questionCounts: Record<string, number> = {};
+      (questionsData || []).forEach((question: any) => {
+        questionCounts[question.quiz_id] = (questionCounts[question.quiz_id] || 0) + 1;
+      });
+
+      // Apply course filter if needed
+      let filteredQuizData = quizData;
+      if (courseFilter) {
+        const filteredLessonIds = lessonsData
+          .filter(lesson => lesson.course_id === courseFilter)
+          .map(lesson => lesson.id);
+        filteredQuizData = quizData.filter(quiz => {
+          // Include quizzes that belong directly to the course
+          if (quiz.course_id === courseFilter) {
+            return true;
+          }
+          // Include quizzes that belong to lessons in the course
+          if (quiz.lesson_id && filteredLessonIds.includes(quiz.lesson_id)) {
+            return true;
+          }
+          return false;
+        });
+      }
+
+      // Create lesson lookup map
+      const lessonMap: Record<string, any> = {};
+      lessonsData.forEach(lesson => {
+        lessonMap[lesson.id] = lesson;
+      });
+
+      // Get course titles for each unique course_id
+      const courseIds = [...new Set(lessonsData.map(lesson => lesson.course_id))];
+      let coursesData: any[] = [];
+      if (courseIds.length > 0) {
+        const {
+          data: courses,
+          error: coursesError
+        } = await supabase.from('courses').select('id, title').in('id', courseIds);
+        if (coursesError) throw coursesError;
+        coursesData = courses || [];
+      }
+
+      // Create course lookup map
+      const courseMap: Record<string, any> = {};
+      coursesData.forEach(course => {
+        courseMap[course.id] = course;
+      });
+
+      // Build enhanced quiz data
+      const enhancedQuizzes = filteredQuizData.map((quiz: any) => {
+        const lesson = quiz.lesson_id ? lessonMap[quiz.lesson_id] : null;
+        // Get course either from lesson or directly from quiz
+        const course = lesson 
+          ? courseMap[lesson.course_id] 
+          : quiz.course_id 
+            ? courseMap[quiz.course_id] 
+            : null;
+        
         return {
           ...quiz,
-          course_title: courseData?.title || 'Unknown Course',
-          question_count: quiz.questions ? quiz.questions.length : 0
+          lesson: lesson,
+          course_title: course?.title || 'Unknown Course',
+          question_count: questionCounts[quiz.id] || 0
         };
-      }));
+      });
       setQuizzes(enhancedQuizzes);
     } catch (error) {
       console.error('Error fetching quizzes:', error);
@@ -141,36 +215,92 @@ export const AdminQuizManagement: React.FC = () => {
   };
   const fetchCourses = async () => {
     try {
+      // Get all courses
       const {
-        data,
-        error
+        data: allCourses,
+        error: coursesError
       } = await supabase.from('courses').select('id, title').order('title', {
         ascending: true
       });
-      if (error) throw error;
-      setCourses(data || []);
+      if (coursesError) throw coursesError;
+
+      // Get courses that have published lessons (which could have quizzes)
+      const {
+        data: lessonsWithCourses,
+        error: lessonsError
+      } = await supabase.from('enhanced_lessons').select('course_id').eq('is_published', true);
+      if (lessonsError) throw lessonsError;
+
+      // Get courses that have quizzes directly associated with them
+      const {
+        data: quizzesWithCourses,
+        error: quizzesError
+      } = await supabase.from('enhanced_quizzes').select('course_id').not('course_id', 'is', null);
+      if (quizzesError) throw quizzesError;
+
+      // Get unique course IDs that have lessons or quizzes
+      const courseIdsWithLessons = [...new Set((lessonsWithCourses || []).map(lesson => lesson.course_id))];
+      const courseIdsWithQuizzes = [...new Set((quizzesWithCourses || []).map(quiz => quiz.course_id))];
+      const relevantCourseIds = [...new Set([...courseIdsWithLessons, ...courseIdsWithQuizzes])];
+
+      // Filter courses to only include those with lessons or quizzes
+      const relevantCourses = (allCourses || []).filter(course => 
+        relevantCourseIds.includes(course.id)
+      );
+
+      setCourses(relevantCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
+      // Fallback to all courses if there's an error
+      try {
+        const {
+          data,
+          error
+        } = await supabase.from('courses').select('id, title').order('title', {
+          ascending: true
+        });
+        if (!error) {
+          setCourses(data || []);
+        }
+      } catch (fallbackError) {
+        console.error('Fallback course fetch also failed:', fallbackError);
+      }
     }
   };
   const fetchLessons = async () => {
     try {
+      // Get lessons
       const {
-        data,
-        error
-      } = await supabase.from('enhanced_lessons').select(`
-          id,
-          title,
-          course_id,
-          courses(title)
-        `).eq('is_published', true).order('title', {
+        data: lessonsData,
+        error: lessonsError
+      } = await supabase.from('enhanced_lessons').select('id, title, course_id').eq('is_published', true).order('title', {
         ascending: true
       });
-      if (error) throw error;
-      const lessonsWithCourses = (data || []).map((lesson: any) => ({
+      if (lessonsError) throw lessonsError;
+
+      if (!lessonsData || lessonsData.length === 0) {
+        setLessons([]);
+        return;
+      }
+
+      // Get course titles
+      const courseIds = [...new Set(lessonsData.map(lesson => lesson.course_id))];
+      const {
+        data: coursesData,
+        error: coursesError
+      } = await supabase.from('courses').select('id, title').in('id', courseIds);
+      if (coursesError) throw coursesError;
+
+      // Create course lookup map
+      const courseMap: Record<string, any> = {};
+      (coursesData || []).forEach(course => {
+        courseMap[course.id] = course;
+      });
+
+      const lessonsWithCourses = lessonsData.map((lesson: any) => ({
         id: lesson.id,
         title: lesson.title,
-        course_title: lesson.courses?.title || 'Unknown Course'
+        course_title: courseMap[lesson.course_id]?.title || 'Unknown Course'
       }));
       setLessons(lessonsWithCourses);
     } catch (error) {

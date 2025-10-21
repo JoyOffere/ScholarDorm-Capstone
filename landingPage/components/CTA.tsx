@@ -90,7 +90,7 @@ export const CTA = () => {
                 <span>Create Free Account</span>
               </motion.button>
             </Link>
-            <Link to="/courses">
+            <Link to="/login">
               <motion.button
                 whileHover={{
                   scale: 1.03,

@@ -83,10 +83,10 @@ export const StudentAchievements: React.FC = () => {
       const {
         count: quizzesCount,
         error: quizzesError
-      } = await supabase.from('quiz_attempts').select('id', {
+      } = await supabase.from('enhanced_quiz_attempts').select('id', {
         count: 'exact',
         head: true
-      }).eq('user_id', user.id).eq('passed', true);
+      }).eq('user_id', user.id).eq('is_passed', true);
       if (quizzesError) throw quizzesError;
       // Process earned badges
       const earned = userBadges.map((item: any) => ({

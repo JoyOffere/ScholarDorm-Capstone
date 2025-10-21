@@ -57,7 +57,7 @@ export const Leaderboard: React.FC = () => {
       const {
         data,
         error
-      } = await supabase.from('quizzes').select('id, title').eq('is_published', true).order('title', {
+      } = await supabase.from('enhanced_quizzes').select('id, title').eq('is_published', true).order('title', {
         ascending: true
       });
       if (!error && data) {

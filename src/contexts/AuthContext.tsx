@@ -167,71 +167,138 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
     
     const initializeAuth = async () => {
       console.log('AuthContext: Initializing authentication...');
-      
+
       try {
-        // Simplified initialization - get current session directly
-        const { data: { session: currentSession }, error } = await supabase.auth.getSession();
-        
-        if (!mounted) return;
-        
-        if (currentSession && !error) {
-          console.log('AuthContext: Valid session found');
-          
-          // Fetch user role from database
+        // First, try to load from storage for immediate UI responsiveness
+        const storedData = loadSessionFromStorage();
+
+        if (storedData.session && storedData.user && mounted) {
+          console.log('AuthContext: Restoring session from storage');
+          setSession(storedData.session);
+          setUser(storedData.user);
+
+          // Start session daemon immediately for background validation
+          sessionDaemon.addEventListener(handleDaemonEvent);
+          sessionDaemon.start();
+          initializationComplete = true;
+
+          // Set loading to false immediately for responsive UI
+          setLoading(false);
+
+          // Now validate the session in background
           try {
-            const { data: roleData, error: roleError } = await supabase
-              .from('users')
-              .select('role')
-              .eq('id', currentSession.user.id)
-              .single();
-            
-            const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : 'student';
-            
-            const userData: User = {
-              id: currentSession.user.id,
-              email: currentSession.user.email,
-              role: userRole
-            };
-            
-            if (mounted) {
-              setSession(currentSession);
-              setUser(userData);
-              saveSessionToStorage(currentSession, userData);
-              
-              // Start session daemon after successful initialization
-              sessionDaemon.addEventListener(handleDaemonEvent);
-              sessionDaemon.start();
-              initializationComplete = true;
+            const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+            if (!mounted) return;
+
+            if (currentSession && !error) {
+              console.log('AuthContext: Session validated successfully');
+
+              // Update user role if needed
+              try {
+                const { data: roleData, error: roleError } = await supabase
+                  .from('users')
+                  .select('role')
+                  .eq('id', currentSession.user.id)
+                  .single();
+
+                const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : storedData.user.role;
+
+                if (userRole !== storedData.user.role) {
+                  const updatedUser: User = {
+                    ...storedData.user,
+                    role: userRole
+                  };
+                  setUser(updatedUser);
+                  saveSessionToStorage(currentSession, updatedUser);
+                } else {
+                  saveSessionToStorage(currentSession, storedData.user);
+                }
+
+              } catch (roleErr) {
+                console.warn('AuthContext: Failed to fetch user role:', roleErr);
+              }
+
+            } else {
+              console.log('AuthContext: Stored session invalid, clearing');
+              if (mounted) {
+                setSession(null);
+                setUser(null);
+                clearAllStorage();
+              }
             }
-            
-          } catch (roleErr) {
-            console.warn('AuthContext: Failed to fetch user role:', roleErr);
-            
-            // Create user with default role if needed
-            const userData: User = {
-              id: currentSession.user.id,
-              email: currentSession.user.email,
-              role: 'student'
-            };
-            
-            if (mounted) {
-              setSession(currentSession);
-              setUser(userData);
-              saveSessionToStorage(currentSession, userData);
-              initializationComplete = true;
-            }
+
+          } catch (validationError) {
+            console.warn('AuthContext: Session validation failed, keeping stored session:', validationError);
+            // Keep the stored session for now, daemon will handle refresh
           }
-          
+
         } else {
-          console.log('AuthContext: No valid session found');
-          if (mounted) {
-            setSession(null);
-            setUser(null);
-            clearAllStorage();
-            initializationComplete = true;
+          // No stored session, try to get from Supabase
+          console.log('AuthContext: No stored session, checking Supabase...');
+          const { data: { session: currentSession }, error } = await supabase.auth.getSession();
+
+          if (!mounted) return;
+
+          if (currentSession && !error) {
+            console.log('AuthContext: Valid session found from Supabase');
+
+            // Fetch user role from database
+            try {
+              const { data: roleData, error: roleError } = await supabase
+                .from('users')
+                .select('role')
+                .eq('id', currentSession.user.id)
+                .single();
+
+              const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : 'student';
+
+              const userData: User = {
+                id: currentSession.user.id,
+                email: currentSession.user.email,
+                role: userRole
+              };
+
+              if (mounted) {
+                setSession(currentSession);
+                setUser(userData);
+                saveSessionToStorage(currentSession, userData);
+
+                // Start session daemon after successful initialization
+                sessionDaemon.addEventListener(handleDaemonEvent);
+                sessionDaemon.start();
+                initializationComplete = true;
+              }
+
+            } catch (roleErr) {
+              console.warn('AuthContext: Failed to fetch user role:', roleErr);
+
+              // Create user with default role if needed
+              const userData: User = {
+                id: currentSession.user.id,
+                email: currentSession.user.email,
+                role: 'student'
+              };
+
+              if (mounted) {
+                setSession(currentSession);
+                setUser(userData);
+                saveSessionToStorage(currentSession, userData);
+                initializationComplete = true;
+              }
+            }
+
+          } else {
+            console.log('AuthContext: No valid session found');
+            if (mounted) {
+              setSession(null);
+              setUser(null);
+              clearAllStorage();
+              initializationComplete = true;
+            }
           }
         }
-        
+
       } catch (error) {
         console.error('AuthContext: Initialization error:', error);
         if (mounted) {
@@ -241,13 +308,13 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
           initializationComplete = true;
         }
       } finally {
-        if (mounted) {
+        if (mounted && !initializationComplete) {
           setLoading(false);
         }
       }
     };
 
-    // Set fallback timer to prevent infinite loading
+    // Set fallback timer to prevent infinite loading (reduced from 5s to 2s for better responsiveness)
     const fallbackTimer = setTimeout(() => {
       if (mounted && loading && !initializationComplete) {
         console.warn('AuthContext: Initialization timeout, forcing loading=false');
@@ -255,7 +322,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
         setLoading(false);
         initializationComplete = true;
       }
-    }, 5000);
+    }, 2000);
 
     // Initialize auth
     initializeAuth();

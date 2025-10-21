@@ -110,7 +110,7 @@ export class DatabaseUtils {
 
       // Get lessons
       let lessonsQuery = supabase
-        .from('lessons')
+        .from('enhanced_lessons')
         .select('id, course_id, title')
         .in('course_id', courseIds);
       if (signal) lessonsQuery = lessonsQuery.abortSignal(signal);
@@ -123,8 +123,8 @@ export class DatabaseUtils {
 
       // Get quizzes
       let quizzesQuery = supabase
-        .from('quizzes')
-        .select('*, lesson:lessons(title, course_id, course:courses(title))')
+        .from('enhanced_quizzes')
+        .select('*, lesson:enhanced_lessons(title, course_id, course:courses(title))')
         .in('lesson_id', lessonIds)
         .eq('is_published', true)
         .limit(5);
@@ -135,8 +135,8 @@ export class DatabaseUtils {
 
       // Get attempts
       let attemptsQuery = supabase
-        .from('quiz_attempts')
-        .select('quiz_id, passed')
+        .from('enhanced_quiz_attempts')
+        .select('quiz_id, is_passed')
         .eq('user_id', userId);
       if (signal) attemptsQuery = attemptsQuery.abortSignal(signal);
 
@@ -149,7 +149,7 @@ export class DatabaseUtils {
         return {
           ...quiz,
           attempted: quizAttempts.length > 0,
-          passed: quizAttempts.some(a => a.passed)
+          passed: quizAttempts.some(a => a.is_passed)
         };
       }) || [];
     });

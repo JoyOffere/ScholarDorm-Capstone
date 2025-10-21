@@ -91,7 +91,7 @@ export const StudentCourses: React.FC = () => {
       const {
         data: rslLessons,
         error: rslError
-      } = await supabase.from('lessons').select('course_id').not('rsl_video_url', 'is', null).not('rsl_video_url', 'eq', '');
+      } = await supabase.from('enhanced_lessons').select('course_id').not('rsl_video_url', 'is', null).not('rsl_video_url', 'eq', '');
       if (rslError) throw rslError;
       const coursesWithRSL = new Set(rslLessons?.map(lesson => lesson.course_id));
       // Combine the data
