@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, EyeIcon, BookOpenIcon, CheckCircleIcon, XCircleIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, ClockIcon, CalendarIcon, VideoIcon, SettingsIcon } from 'lucide-react';
+import { SearchIcon, FilterIcon, PlusIcon, EditIcon, TrashIcon, EyeIcon, BookOpenIcon, CheckCircleIcon, XCircleIcon, DownloadIcon, RefreshCwIcon, MoreHorizontalIcon, XIcon, ClockIcon, CalendarIcon, VideoIcon, SettingsIcon, AwardIcon, UsersIcon, BarChartIcon, PlayCircleIcon } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { getCourses, deleteCourse, Course } from '../../../lib/supabase-utils';
 import { RSLService, RSLAccessibilitySettings } from '../../../lib/rsl-service';
@@ -10,6 +10,51 @@ interface CourseWithDetails extends Omit<Course, 'difficulty_level'> {
   difficulty_level: string;
   created_by_name?: string;
   lesson_count?: number;
+  quiz_count?: number;
+  enrollment_count?: number;
+  average_progress?: number;
+  has_rsl_support?: boolean;
+  grade_level?: string;
+  learning_objectives?: string[];
+  prerequisites?: string[];
+  estimated_duration_hours?: number;
+}
+
+interface LessonData {
+  id: string;
+  title: string;
+  description: string;
+  content_type: 'video' | 'text' | 'interactive' | 'quiz' | 'mixed';
+  content_html?: string;
+  content_url?: string;
+  duration_minutes?: number;
+  order_index: number;
+  learning_objectives?: string[];
+  key_concepts?: string[];
+  difficulty_tags?: string[];
+  is_preview?: boolean;
+}
+
+interface QuizData {
+  id: string;
+  title: string;
+  description: string;
+  quiz_type: 'practice' | 'assessment' | 'final';
+  max_attempts: number;
+  passing_score: number;
+  questions: QuizQuestion[];
+}
+
+interface QuizQuestion {
+  id: string;
+  question_text: string;
+  question_type: 'mcq' | 'short_answer' | 'essay' | 'word_problem';
+  options?: Record<string, string>;
+  correct_answer: string;
+  explanation?: string;
+  difficulty_level: 'easy' | 'moderate' | 'challenge';
+  points: number;
+  topic_tag?: string;
 }
 export const AdminCourses: React.FC = () => {
   const { user } = useAuth();
@@ -177,28 +222,67 @@ export const AdminCourses: React.FC = () => {
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const data = await getCourses({
-        subject: subjectFilter || undefined,
-        difficulty: difficultyFilter || undefined,
-        isActive: statusFilter !== null ? statusFilter : undefined,
-        search: searchTerm || undefined
-      });
-      // Use the optimized data from getCourses with creator name and lesson count
+      
+      // Enhanced query to get courses with detailed information
+      const { data, error } = await supabase
+        .from('courses')
+        .select(`
+          *,
+          created_by_user:users!courses_created_by_fkey(full_name),
+          enhanced_lesson_count:enhanced_lessons(count),
+          quiz_count:enhanced_quizzes(count),
+          enrollment_count:course_enrollments(count)
+        `)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Transform the data to include enhanced fields
       const coursesWithDetails = (data || []).map((course: any) => {
-        const { difficulty_level, created_by_name, lesson_count, ...rest } = course;
         return {
-          ...rest,
-          difficulty_level: (difficulty_level as string).toLowerCase() as 'beginner' | 'intermediate' | 'advanced',
-          created_by_name: created_by_name || 'Unknown',
-          lesson_count: typeof lesson_count === 'number' ? lesson_count : 0
+          ...course,
+          difficulty_level: course.difficulty_level as string,
+          created_by_name: course.created_by_user?.full_name || 'Admin User',
+          lesson_count: course.enhanced_lesson_count?.[0]?.count || course.total_lessons || 0,
+          quiz_count: course.quiz_count?.[0]?.count || 0,
+          enrollment_count: course.enrollment_count?.[0]?.count || 0,
+          has_rsl_support: course.has_rsl_support || false,
+          grade_level: course.grade_level || 'General',
+          estimated_duration_hours: course.estimated_duration_hours || 0
         };
       });
-      setCourses(coursesWithDetails || []);
-      // Extract unique subjects for filter
-      if (data && data.length > 0) {
-        const uniqueSubjects = Array.from(new Set(data.map((course: any) => course.subject)));
-        setSubjects(uniqueSubjects as string[]);
+
+      // Apply filters
+      let filteredCourses = coursesWithDetails;
+      
+      if (subjectFilter) {
+        filteredCourses = filteredCourses.filter(course => course.subject === subjectFilter);
       }
+      
+      if (difficultyFilter) {
+        filteredCourses = filteredCourses.filter(course => course.difficulty_level === difficultyFilter);
+      }
+      
+      if (statusFilter !== null) {
+        filteredCourses = filteredCourses.filter(course => course.is_active === statusFilter);
+      }
+      
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        filteredCourses = filteredCourses.filter(course => 
+          course.title.toLowerCase().includes(searchLower) ||
+          course.description?.toLowerCase().includes(searchLower) ||
+          course.subject.toLowerCase().includes(searchLower)
+        );
+      }
+
+      setCourses(filteredCourses);
+      
+      // Extract unique subjects for filter
+      const uniqueSubjects = Array.from(new Set(coursesWithDetails.map(course => course.subject)));
+      setSubjects(uniqueSubjects);
+      
     } catch (error) {
       console.error('Error fetching courses:', error);
     } finally {
@@ -566,6 +650,9 @@ export const AdminCourses: React.FC = () => {
                   Difficulty
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Lessons
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -633,6 +720,14 @@ export const AdminCourses: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <span className="text-sm font-medium text-gray-900">
+                          {course.lesson_count || 0}
+                        </span>
+                        <span className="ml-1 text-xs text-gray-500">lessons</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${course.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                         {course.is_active ? <>
                             <CheckCircleIcon size={12} className="mr-1" />
@@ -648,6 +743,9 @@ export const AdminCourses: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2" onClick={e => e.stopPropagation()}>
+                        <Link to={`/admin/courses/${course.id}/lessons`} className="text-green-600 hover:text-green-900" title="Manage lessons">
+                          <BookOpenIcon size={16} />
+                        </Link>
                         <Link to={`/admin/courses/${course.id}`} className="text-purple-600 hover:text-purple-900" title="Edit course">
                           <EditIcon size={16} />
                         </Link>
@@ -851,16 +949,23 @@ export const AdminCourses: React.FC = () => {
                         <div className="text-xs text-gray-500 uppercase">
                           Lessons
                         </div>
-                        <div className="font-medium text-gray-800">
-                          {selectedCourse.lesson_count || 0}
+                        <div className="font-medium text-gray-800 flex items-center justify-between">
+                          <span>{selectedCourse.lesson_count || 0}</span>
+                          <Link 
+                            to={`/admin/courses/${selectedCourse.id}/lessons`}
+                            className="text-purple-600 hover:text-purple-800 text-xs"
+                            onClick={() => setShowCourseModal(false)}
+                          >
+                            Manage →
+                          </Link>
                         </div>
                       </div>
                       <div className="bg-gray-50 p-3 rounded-lg">
                         <div className="text-xs text-gray-500 uppercase">
-                          Created By
+                          Quizzes
                         </div>
                         <div className="font-medium text-gray-800">
-                          {selectedCourse.created_by_name}
+                          {selectedCourse.quiz_count || 0}
                         </div>
                       </div>
                     </div>
@@ -889,7 +994,15 @@ export const AdminCourses: React.FC = () => {
                       Cancel
                     </button>
                   </> : <>
-                    <button type="button" className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm" onClick={handleEditClick}>
+                    <Link 
+                      to={`/admin/courses/${selectedCourse.id}/lessons`}
+                      onClick={() => setShowCourseModal(false)}
+                      className="w-full inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm"
+                    >
+                      <BookOpenIcon size={16} className="mr-2" />
+                      Manage Lessons
+                    </Link>
+                    <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={handleEditClick}>
                       Edit Course
                     </button>
                     <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => handleDeleteClick(selectedCourse.id)}>

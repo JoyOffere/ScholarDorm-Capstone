@@ -69,30 +69,30 @@ export const Header = () => {
         </div>
         {/* Desktop Navigation */}
         <nav className="hidden md:flex space-x-8">
-          <a
-            href="#features"
+          <Link
+            to="/features"
             className="text-slate-700 hover:text-primary-600 transition-colors font-medium"
           >
             Features
-          </a>
-          <a
-            href="#rsl"
+          </Link>
+          <Link
+            to="/rsl"
             className="text-slate-700 hover:text-primary-600 transition-colors font-medium"
           >
             RSL Learning
-          </a>
-          <a
-            href="#how-it-works"
+          </Link>
+          <Link
+            to="/about"
             className="text-slate-700 hover:text-primary-600 transition-colors font-medium"
           >
-            How It Works
-          </a>
-          <a
-            href="#testimonials"
+            About Us
+          </Link>
+          <Link
+            to="/contact"
             className="text-slate-700 hover:text-primary-600 transition-colors font-medium"
           >
-            Testimonials
-          </a>
+            Contact
+          </Link>
         </nav>
         <div className="hidden md:flex items-center space-x-4">
           <Link
@@ -122,34 +122,34 @@ export const Header = () => {
       {isMenuOpen && (
         <div ref={menuRef} className="md:hidden bg-white border-t border-slate-200 animate-slide-down">
           <div className="container mx-auto px-4 py-4 flex flex-col space-y-4">
-            <a
-              href="#features"
+            <Link
+              to="/features"
               onClick={() => setIsMenuOpen(false)}
               className="text-slate-700 hover:text-primary-600 transition-colors font-medium py-2"
             >
               Features
-            </a>
-            <a
-              href="#rsl"
+            </Link>
+            <Link
+              to="/rsl"
               onClick={() => setIsMenuOpen(false)}
               className="text-slate-700 hover:text-primary-600 transition-colors font-medium py-2"
             >
               RSL Learning
-            </a>
-            <a
-              href="#how-it-works"
+            </Link>
+            <Link
+              to="/about"
               onClick={() => setIsMenuOpen(false)}
               className="text-slate-700 hover:text-primary-600 transition-colors font-medium py-2"
             >
-              How It Works
-            </a>
-            <a
-              href="#testimonials"
+              About Us
+            </Link>
+            <Link
+              to="/contact"
               onClick={() => setIsMenuOpen(false)}
               className="text-slate-700 hover:text-primary-600 transition-colors font-medium py-2"
             >
-              Testimonials
-            </a>
+              Contact
+            </Link>
             <div className="flex flex-col space-y-2 pt-2 border-t border-slate-200">
               <Link
                 to="/login"

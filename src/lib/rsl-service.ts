@@ -56,6 +56,14 @@ export interface RSLAccessibilitySettings {
   sign_descriptions: boolean;
 }
 
+// Cache for accessibility settings to prevent repeated API calls
+const accessibilitySettingsCache = new Map<string, {
+  settings: RSLAccessibilitySettings;
+  timestamp: number;
+}>();
+
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 // RSL Service Class
 export class RSLService {
   // Get RSL videos by category
@@ -174,29 +182,66 @@ export class RSLService {
 
   // Get user's accessibility settings
   static async getAccessibilitySettings(userId: string): Promise<RSLAccessibilitySettings> {
+    // Check cache first
+    const cached = accessibilitySettingsCache.get(userId);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      return cached.settings;
+    }
+
     try {
       const { data, error } = await supabase
         .from('user_settings')
         .select('accessibility_settings')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to handle no results
 
       if (error) {
-        if (error.code === 'PGRST116') {
-          // No settings found for this user, return defaults
-          return {
-            show_captions: true,
-            video_speed: 1.0,
-            high_contrast: false,
-            large_text: false,
-            auto_repeat: false,
-            sign_descriptions: true,
-          };
-        }
-        throw error;
+        console.error('Error fetching accessibility settings:', error);
+        // Return defaults on any error
+        return {
+          show_captions: true,
+          video_speed: 1.0,
+          high_contrast: false,
+          large_text: false,
+          auto_repeat: false,
+          sign_descriptions: true,
+        };
       }
 
-      return {
+      // If no data found (user_settings record doesn't exist), create it with defaults
+      if (!data) {
+        const defaultSettings = {
+          show_captions: true,
+          video_speed: 1.0,
+          high_contrast: false,
+          large_text: false,
+          auto_repeat: false,
+          sign_descriptions: true,
+        };
+
+        // Try to create the user_settings record
+        try {
+          await supabase.from('user_settings').insert({
+            user_id: userId,
+            accessibility_settings: defaultSettings
+          });
+        } catch (insertError) {
+          console.error('Error creating user_settings:', insertError);
+          // Continue with defaults even if insert fails
+        }
+
+        // Cache the defaults
+        accessibilitySettingsCache.set(userId, {
+          settings: defaultSettings,
+          timestamp: Date.now()
+        });
+
+        return defaultSettings;
+      }
+
+      const settings = {
         show_captions: data?.accessibility_settings?.show_captions ?? true,
         video_speed: data?.accessibility_settings?.video_speed ?? 1.0,
         high_contrast: data?.accessibility_settings?.high_contrast ?? false,
@@ -204,6 +249,14 @@ export class RSLService {
         auto_repeat: data?.accessibility_settings?.auto_repeat ?? false,
         sign_descriptions: data?.accessibility_settings?.sign_descriptions ?? true,
       };
+
+      // Cache the settings
+      accessibilitySettingsCache.set(userId, {
+        settings,
+        timestamp: Date.now()
+      });
+
+      return settings;
     } catch (error) {
       console.error('Error fetching accessibility settings:', error);
       return {
@@ -228,21 +281,27 @@ export class RSLService {
         .from('user_settings')
         .select('accessibility_settings')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error('Error fetching current settings:', fetchError);
+        throw fetchError;
+      }
 
       const updatedSettings = {
         ...currentSettings?.accessibility_settings,
         ...settings
       };
 
+      // Use upsert to handle both update and insert cases
       const { error } = await supabase
         .from('user_settings')
-        .update({
+        .upsert({
+          user_id: userId,
           accessibility_settings: updatedSettings
-        })
-        .eq('user_id', userId);
+        }, {
+          onConflict: 'user_id'
+        });
 
       if (error) throw error;
     } catch (error) {

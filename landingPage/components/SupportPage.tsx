@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   HelpCircleIcon,
@@ -17,36 +18,42 @@ const supportOptions = [
     title: 'FAQ & Troubleshooting',
     description: 'Find answers to common questions and resolve issues quickly.',
     action: 'Browse FAQs',
+    link: '/support',
   },
   {
     icon: <MessageCircleIcon className="w-6 h-6" />,
     title: 'Live Chat Support',
     description: 'Get instant help from our support team during business hours.',
     action: 'Start Chat',
+    link: '/contact',
   },
   {
     icon: <MailIcon className="w-6 h-6" />,
     title: 'Email Support',
     description: 'Send detailed inquiries and receive comprehensive responses.',
     action: 'Send Email',
+    link: '/contact',
   },
   {
     icon: <PhoneIcon className="w-6 h-6" />,
     title: 'Phone Support',
     description: 'Speak directly with our technical support specialists.',
     action: 'Call Now',
+    link: '/contact',
   },
   {
     icon: <FileTextIcon className="w-6 h-6" />,
     title: 'Knowledge Base',
     description: 'Access detailed guides, tutorials, and best practices.',
     action: 'Explore Docs',
+    link: '/documentation',
   },
   {
     icon: <UsersIcon className="w-6 h-6" />,
     title: 'Community Forum',
     description: 'Connect with other users and share solutions.',
     action: 'Join Community',
+    link: '/community',
   },
 ]
 
@@ -135,9 +142,11 @@ export const SupportPage = () => {
                     {option.title}
                   </h3>
                   <p className="text-slate-600 mb-4">{option.description}</p>
-                  <button className="w-full bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors">
-                    {option.action}
-                  </button>
+                  <Link to={option.link}>
+                    <button className="w-full bg-primary-600 text-white py-2 px-4 rounded-lg hover:bg-primary-700 transition-colors">
+                      {option.action}
+                    </button>
+                  </Link>
                 </motion.div>
               ))}
             </motion.div>

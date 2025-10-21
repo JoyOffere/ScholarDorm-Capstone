@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   HandIcon,
@@ -153,10 +154,12 @@ export const RSLSection = () => {
                 delay: 0.4,
               }}
             >
-              <button className="px-6 py-3 bg-secondary-600 text-white rounded-lg font-medium hover:bg-secondary-700 transition-colors shadow-lg shadow-secondary-100 flex items-center space-x-2">
-                <HeartIcon size={18} />
-                <span>Explore RSL Learning</span>
-              </button>
+              <Link to="/rsl">
+                <button className="px-6 py-3 bg-secondary-600 text-white rounded-lg font-medium hover:bg-secondary-700 transition-colors shadow-lg shadow-secondary-100 flex items-center space-x-2">
+                  <HeartIcon size={18} />
+                  <span>Explore RSL Learning</span>
+                </button>
+              </Link>
             </motion.div>
           </motion.div>
           <motion.div

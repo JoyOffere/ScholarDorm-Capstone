@@ -478,11 +478,6 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <DashboardLayout title="Admin Dashboard" role="admin">
-      {loading && (
-        <div className="flex justify-center items-center h-screen">
-          <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-purple-600 border-opacity-25 border-b-4"></div>
-        </div>
-      )}
 
       {/* Welcome Modal with RSL Video */}
       {showWelcomeModal && (
@@ -578,7 +573,31 @@ export const AdminDashboard: React.FC = () => {
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {statCards.map((card, index) => (
+          {loading ? (
+            // Show skeleton loading cards
+            Array.from({ length: 8 }).map((_, index) => (
+              <div key={index} className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
+                <div className="bg-gradient-to-r from-gray-300 to-gray-400 p-4">
+                  <div className="animate-pulse flex items-center justify-between">
+                    <div className="bg-gray-200 p-3 rounded-full">
+                      <div className="w-6 h-6 bg-gray-300 rounded"></div>
+                    </div>
+                    <div className="text-right">
+                      <div className="h-4 bg-gray-200 rounded w-16 mb-2"></div>
+                      <div className="h-6 bg-gray-200 rounded w-12"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="animate-pulse">
+                    <div className="h-3 bg-gray-200 rounded w-20 mb-2"></div>
+                    <div className="h-4 bg-gray-200 rounded w-12"></div>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            statCards.map((card, index) => (
             <div 
               key={index} 
               className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 group"
@@ -606,7 +625,8 @@ export const AdminDashboard: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
 
         {/* Analytics Charts */}
@@ -621,256 +641,139 @@ export const AdminDashboard: React.FC = () => {
               <span className="text-sm text-gray-500">Last 30 days</span>
             </div>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData.enrollmentTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="date" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={70} />
-                  <YAxis tick={{ fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: '8px',
-                      padding: '10px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                    }}
-                  />
-                  <Legend />
-                  <Line 
-                    type="monotone" 
-                    dataKey="enrollments" 
-                    stroke="#3b82f6" 
-                    strokeWidth={2}
-                    dot={{ fill: '#3b82f6', strokeWidth: 2 }}
-                    activeDot={{ r: 6 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+              {loading ? (
+                <div className="animate-pulse h-full bg-gray-200 rounded"></div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData.enrollmentTrend}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={70} />
+                    <YAxis tick={{ fontSize: 12 }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'white',
+                        border: '1px solid #e5e5e5',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                      }}
+                    />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="enrollments" 
+                      stroke="#3b82f6" 
+                      strokeWidth={2}
+                      dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              )}
             </div>
           </div>
 
           {/* Completion Rates */}
           <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-gray-800 flex items-center">
-                <Target size={20} className="mr-2 text-green-600" />
-                Course Completion Rates
-              </h3>
-              <span className="text-sm text-gray-500">Top Courses</span>
-            </div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData.completionRates}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis dataKey="course" tick={{ fontSize: 12 }} angle={-45} textAnchor="end" height={70} />
-                  <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} />
-                  <Tooltip 
-                    formatter={(value) => `${value}%`}
-                    contentStyle={{ 
-                      backgroundColor: 'white',
-                      border: '1px solid #e5e5e5',
-                      borderRadius: '8px',
-                      padding: '10px',
-                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                    }}
-                  />
-                  <Legend />
-                  <Bar 
-                    dataKey="rate" 
-                    fill="#22c55e" 
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-            <SettingsIcon size={24} className="mr-2 text-purple-600" />
-            Quick Actions
-          </h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {quickActions.map((action, index) => (
-              <Link
-                key={index}
-                to={action.to}
-                className={`${action.color} text-white p-5 rounded-xl transition-all duration-300 hover:scale-105 hover:shadow-lg group relative overflow-hidden`}
-              >
-                <div className="absolute top-0 right-0 w-20 h-20 bg-white opacity-10 rounded-full -mr-10 -mt-10"></div>
-                {action.badge && (
-                  <span className="absolute top-2 right-2 bg-red-500 text-white rounded-full text-xs px-2 py-1 font-medium shadow-md">
-                    {action.badge}
-                  </span>
-                )}
-                <div className="flex items-center justify-between mb-3">
-                  <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm group-hover:rotate-6 transition-transform">
-                    {action.icon}
-                  </div>
-                  <ArrowRightIcon size={18} className="opacity-80 group-hover:translate-x-2 transition-transform" />
-                </div>
-                <h3 className="font-bold text-lg mb-1">{action.title}</h3>
-                <p className="text-sm opacity-90">{action.description}</p>
-              </Link>
-            ))}
-          </div>
-        </div>
-
-        {/* Two-column layout for activities and system status */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Recent Activities */}
-          <div className="lg:col-span-2 bg-white rounded-2xl shadow-md p-6 border border-gray-100">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-gray-800 flex items-center">
-                <ActivityIcon size={24} className="mr-2 text-green-600" />
-                Recent Activities
-              </h2>
-              <Link to="/admin/activities" className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center">
-                View All <ArrowRightIcon size={14} className="ml-1" />
-              </Link>
+              <h3 className="text-xl font-bold text-gray-900">Course Completion Rates</h3>
+              <BarChartIcon size={24} className="text-purple-600" />
             </div>
-            {recentActivities.length > 0 ? (
-              <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                {recentActivities.map((activity) => (
-                  <div key={activity.id} className="flex items-start p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors group">
-                    <div className={`${getActionColor(activity.action)} p-3 rounded-xl mr-4 flex-shrink-0 shadow-sm`}>
-                      {getActionIcon(activity.action)}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-800">
-                          {activity.user_email} <span className="text-gray-500">performed</span> {activity.action}
-                        </p>
-                        <span className="text-xs text-gray-500 group-hover:text-gray-700">{formatTimeAgo(activity.created_at)}</span>
+            <div className="h-80">
+              {loading ? (
+                <div className="animate-pulse h-full bg-gray-200 rounded"></div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={chartData.completionRates}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="course" />
+                    <YAxis />
+                    <Tooltip formatter={(value) => [`${value}%`, 'Completion Rate']} />
+                    <Bar dataKey="rate" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Recent Activities */}
+        <div className="bg-white rounded-2xl shadow-md overflow-hidden border border-gray-100">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-900">Recent System Activities</h3>
+              <ActivityIcon size={24} className="text-purple-600" />
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loading ? (
+                  // Show skeleton rows while loading
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <tr key={index} className="animate-pulse">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="h-8 w-8 bg-gray-200 rounded-full mr-3"></div>
+                          <div className="h-4 bg-gray-200 rounded w-32"></div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="h-4 bg-gray-200 rounded w-24"></div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="h-4 bg-gray-200 rounded w-16"></div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="h-4 bg-gray-200 rounded w-20"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : recentActivities.length > 0 ? recentActivities.map((activity) => (
+                  <tr key={activity.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="flex-shrink-0 h-8 w-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
+                          <ActivityIcon size={16} className="text-purple-600" />
+                        </div>
+                        <span className="text-sm font-medium text-gray-900">{activity.action}</span>
                       </div>
-                      {activity.details && (
-                        <p className="text-xs text-gray-600 mt-1 line-clamp-1">{JSON.stringify(activity.details)}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <ActivityIcon size={48} className="mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-600 font-medium">No recent activities</p>
-                <p className="text-sm text-gray-500 mt-1">Activities will appear here as users interact with the platform</p>
-              </div>
-            )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{activity.user_email}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatTimeAgo(activity.created_at)}</td>
+                    <td className="px-6 py-4 text-sm text-gray-500">
+                      {activity.details ? JSON.stringify(activity.details) : 'No details'}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                      No recent activities found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          {/* System Status Panel */}
-          <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
-            <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
-              <CheckCircleIcon size={24} className="mr-2 text-emerald-600" />
-              System Status
-            </h2>
-            <div className="space-y-6">
-              <div className="text-center">
-                <div className="relative inline-block">
-                  <div className="w-32 h-32 rounded-full border-8 border-emerald-200 flex items-center justify-center">
-                    <span className="text-3xl font-bold text-emerald-600">{stats.systemHealth}%</span>
-                  </div>
-                  <div 
-                    className="absolute top-0 left-0 w-32 h-32 rounded-full border-8 border-emerald-600"
-                    style={{
-                      clipPath: `inset(0 0 ${100 - stats.systemHealth}% 0)`
-                    }}
-                  ></div>
-                </div>
-                <p className="mt-2 text-sm font-medium text-gray-600">Overall Health</p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl shadow-inner">
-                  <div className="flex items-center">
-                    <CheckCircleIcon size={16} className="text-emerald-600 mr-2" />
-                    <span className="text-sm font-medium text-gray-800">Database</span>
-                  </div>
-                  <span className="text-sm font-bold text-emerald-600">Operational</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-blue-50 rounded-xl shadow-inner">
-                  <div className="flex items-center">
-                    <CheckCircleIcon size={16} className="text-blue-600 mr-2" />
-                    <span className="text-sm font-medium text-gray-800">API Services</span>
-                  </div>
-                  <span className="text-sm font-bold text-blue-600">Online</span>
-                </div>
-                <div className="flex items-center justify-between p-3 bg-orange-50 rounded-xl shadow-inner">
-                  <div className="flex items-center">
-                    <ClockIcon size={16} className="text-orange-600 mr-2" />
-                    <span className="text-sm font-medium text-gray-800">Pending Tasks</span>
-                  </div>
-                  <span className="text-sm font-bold text-orange-600">{stats.pendingFeedback}</span>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-gray-200">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">Quick Insights</h3>
-                <div className="space-y-3 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 flex items-center">
-                      <TrendingUpIcon size={12} className="mr-1 text-green-500" />
-                      New Users Today
-                    </span>
-                    <span className="font-medium text-gray-800">--</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 flex items-center">
-                      <Award size={12} className="mr-1 text-yellow-500" />
-                      Badges Awarded
-                    </span>
-                    <span className="font-medium text-gray-800">--</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 flex items-center">
-                      <Target size={12} className="mr-1 text-orange-500" />
-                      Avg Session Time
-                    </span>
-                    <span className="font-medium text-gray-800">-- min</span>
-                  </div>
-                </div>
-              </div>
+        {/* Error State */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertCircleIcon size={20} className="text-red-600 mr-2" />
+              <span className="text-red-800">{error}</span>
             </div>
           </div>
-        </div>
-
-        {/* User Growth Chart */}
-        <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center">
-            <UsersIcon size={24} className="mr-2 text-indigo-600" />
-            User Growth
-          </h2>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData.userGrowth}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                <YAxis tick={{ fontSize: 12 }} />
-                <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white',
-                    border: '1px solid #e5e5e5',
-                    borderRadius: '8px',
-                    padding: '10px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
-                  }}
-                />
-                <Legend />
-                <Line 
-                  type="monotone" 
-                  dataKey="users" 
-                  stroke="#6366f1" 
-                  strokeWidth={2}
-                  dot={{ fill: '#6366f1', strokeWidth: 2 }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        )}
       </div>
     </DashboardLayout>
   );

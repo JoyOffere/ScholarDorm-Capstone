@@ -18,6 +18,8 @@ import { AdminDashboard } from './components/dashboard/admin/Dashboard';
 import { AdminUsers } from './components/dashboard/admin/Users';
 import { AdminAuditLog } from './components/dashboard/admin/AuditLog';
 import { AdminCourses } from './components/dashboard/admin/Courses';
+import { AdminLessons } from './components/dashboard/admin/AdminLessons';
+import { RwandaMathCourses } from './components/dashboard/admin/RwandaMathCourses';
 import { AdminQuizManagement } from './components/dashboard/admin/QuizManagement';
 import { AdminSettings } from './components/dashboard/admin/Settings';
 import { AdminProfile } from './components/dashboard/admin/Profile';
@@ -295,6 +297,18 @@ const AppContent: React.FC = () => {
               <AdminCourses />
             </RequireRole>
           } 
+        />
+        <Route 
+          path="/admin/courses/:courseId/lessons" 
+          element={
+            <RequireRole requiredRole="admin">
+              <AdminLessons />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/rwanda-math" 
+          element={<RwandaMathCourses />} 
         />
         <Route 
           path="/admin/quizzes" 

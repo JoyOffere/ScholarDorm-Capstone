@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   MailIcon,
@@ -79,42 +80,74 @@ export const ContactPage = () => {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 text-slate-900">
       <Header />
       <main>
-        <section className="py-16 md:py-24 bg-white">
-          <div className="container mx-auto px-4 md:px-6">
-            <div className="text-center max-w-3xl mx-auto mb-16">
-              <motion.h1
+        <section className="py-20 md:py-32 bg-gradient-to-br from-primary-50 via-white to-primary-100 relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('/SCHOLARDORM_LOGO.png')] bg-no-repeat bg-center bg-contain opacity-5"></div>
+          <div className="container mx-auto px-4 md:px-6 relative z-10">
+            <div className="text-center max-w-4xl mx-auto mb-12">
+              <motion.div
                 initial={{
                   opacity: 0,
-                  y: -10,
+                  scale: 0.9,
                 }}
                 animate={{
                   opacity: 1,
-                  y: 0,
+                  scale: 1,
                 }}
                 transition={{
-                  duration: 0.5,
+                  duration: 0.6,
                 }}
-                className="text-4xl md:text-5xl font-bold text-slate-900 mb-4"
+                className="mb-6"
               >
-                Get in Touch
-              </motion.h1>
+                <span className="inline-block px-4 py-2 bg-primary-100 text-primary-700 rounded-full text-sm font-medium mb-4">
+                  Contact Us
+                </span>
+                <h1 className="text-5xl md:text-6xl font-bold text-slate-900 mb-6 leading-tight">
+                  Get in <span className="text-primary-600">Touch</span>
+                </h1>
+              </motion.div>
               <motion.p
                 initial={{
                   opacity: 0,
-                  y: 10,
+                  y: 20,
                 }}
                 animate={{
                   opacity: 1,
                   y: 0,
                 }}
                 transition={{
-                  duration: 0.5,
-                  delay: 0.2,
+                  duration: 0.6,
+                  delay: 0.3,
                 }}
-                className="text-lg text-slate-600"
+                className="text-xl text-slate-600 mb-8 leading-relaxed"
               >
                 Have questions about ScholarDorm or RSL integration? We're here to help. Reach out through any of the channels below.
               </motion.p>
+              <motion.div
+                initial={{
+                  opacity: 0,
+                  y: 20,
+                }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                }}
+                transition={{
+                  duration: 0.6,
+                  delay: 0.5,
+                }}
+                className="flex flex-col sm:flex-row gap-4 justify-center"
+              >
+                <Link to="/contact">
+                  <button className="px-8 py-3 bg-primary-600 text-white rounded-lg font-semibold hover:bg-primary-700 transition-colors shadow-lg">
+                    Send Message
+                  </button>
+                </Link>
+                <Link to="/support">
+                  <button className="px-8 py-3 border border-primary-600 text-primary-600 rounded-lg font-semibold hover:bg-primary-50 transition-colors">
+                    View Support
+                  </button>
+                </Link>
+              </motion.div>
             </div>
             <motion.div
               variants={containerVariants}
