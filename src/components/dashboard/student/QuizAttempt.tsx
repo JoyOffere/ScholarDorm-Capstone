@@ -54,11 +54,13 @@ export const QuizAttempt: React.FC = () => {
   const [currentQuestionRSL, setCurrentQuestionRSL] = useState<QuizQuestion | null>(null);
   const [questionRSLWatched, setQuestionRSLWatched] = useState<Record<string, boolean>>({});
   const [pendingQuestionIndex, setPendingQuestionIndex] = useState<number | null>(null);
+  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const timerRef = useRef<number | null>(null);
   useEffect(() => {
     const fetchQuizData = async () => {
       try {
-        if (!quizId) return;
+        if (!quizId || isLoadingQuiz) return;
+        setIsLoadingQuiz(true);
         // Get current user
         const {
           data: {
@@ -131,8 +133,10 @@ export const QuizAttempt: React.FC = () => {
         }
         
         // Debug logging
-        console.log('Loaded questions:', processedQuestions.length);
-        console.log('First question sample:', processedQuestions[0]);
+        if (import.meta.env.DEV) {
+          console.log('Loaded questions:', processedQuestions.length);
+          console.log('First question sample:', processedQuestions[0]);
+        }
         
         setQuestions(processedQuestions);
         // Set timer if applicable
@@ -144,6 +148,7 @@ export const QuizAttempt: React.FC = () => {
         console.error('Error fetching quiz data:', error);
       } finally {
         setLoading(false);
+        setIsLoadingQuiz(false);
       }
     };
     fetchQuizData();
@@ -152,7 +157,7 @@ export const QuizAttempt: React.FC = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [quizId, navigate]);
+  }, [quizId]);
   useEffect(() => {
     if (timeRemaining === null) return;
     if (timeRemaining > 0 && !quizComplete) {

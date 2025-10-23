@@ -56,8 +56,10 @@ import { SessionDebugPage } from './components/debug/SessionDebugPage';
 const AppContent: React.FC = () => {
   const { user, session, loading } = useAuth();
 
-  // Debug: Log auth state changes
-  console.log('AppContent: Auth state - user:', user?.id, 'role:', user?.role, 'session:', !!session, 'loading:', loading);
+  // Debug: Log auth state changes (only in development and when loading state changes)
+  if (import.meta.env.DEV && loading) {
+    console.log('AppContent: Auth state - user:', user?.id, 'role:', user?.role, 'session:', !!session, 'loading:', loading);
+  }
   const [toast, setToast] = useState<{
     visible: boolean;
     message: string;
@@ -81,9 +83,7 @@ const AppContent: React.FC = () => {
 
   // Auth Guard component to protect routes
   const RequireAuth = ({ children }: { children: React.ReactNode }) => {
-    console.log('RequireAuth: session exists?', !!session, 'user exists?', !!user);
     if (!session) {
-      console.log('RequireAuth: No session, redirecting to /');
       return <Navigate to="/" replace />;
     }
     return <>{children}</>;
@@ -97,8 +97,6 @@ const AppContent: React.FC = () => {
     children: React.ReactNode;
     requiredRole: 'student' | 'admin'
   }) => {
-    console.log('RequireRole: session?', !!session, 'user?', !!user, 'user.role?', user?.role, 'requiredRole:', requiredRole, 'loading?', loading);
-
     // Don't redirect while loading - show loading spinner
     if (loading) {
       return (
@@ -120,7 +118,6 @@ const AppContent: React.FC = () => {
     // If role doesn't match, redirect to their dashboard
     if (user.role && user.role !== requiredRole) {
       const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
-      console.log(`Role mismatch: user is ${user.role}, required ${requiredRole}, redirecting to ${redirectPath}`);
       return <Navigate to={redirectPath} replace />;
     }
 
@@ -153,10 +150,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              (() => {
-                console.log('Root route: Redirecting authenticated user to dashboard, role:', user.role);
-                return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
-              })()
+              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
             ) : (
               <Landing />
             )
@@ -173,10 +167,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              (() => {
-                console.log('Login route: User already authenticated, redirecting to dashboard, role:', user.role);
-                return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
-              })()
+              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
             ) : (
               <LoginPage />
             )
@@ -193,10 +184,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              (() => {
-                console.log('Signup route: User already authenticated, redirecting to dashboard, role:', user.role);
-                return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
-              })()
+              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
             ) : (
               <SignupPage />
             )

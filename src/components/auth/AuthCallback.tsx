@@ -39,7 +39,7 @@ export const AuthCallback: React.FC = () => {
       
       setTimeout(() => {
         navigate('/login', { replace: true });
-      }, 1000); // Faster redirect for invalid callbacks
+      }, 500); // Even faster redirect for invalid callbacks
       
       return;
     }
@@ -57,18 +57,13 @@ export const AuthCallback: React.FC = () => {
     try {
       setState({
         status: 'loading',
-        message: 'Verifying your Google account...'
+        message: 'Verifying authentication...'
       });
 
-      // Use AuthContext to handle OAuth callback
+      // Use AuthContext to handle OAuth callback (this already handles session setup)
       await handleOAuthCallback();
 
-      setState({
-        status: 'loading',
-        message: 'Setting up your account...'
-      });
-
-      // Get current session to extract user data
+      // Get current session data - should be available immediately after handleOAuthCallback
       const { data: sessionData } = await supabase.auth.getSession();
       const user = sessionData.session?.user;
 
@@ -76,28 +71,25 @@ export const AuthCallback: React.FC = () => {
         throw new Error('Unable to retrieve user information after OAuth.');
       }
 
-      // Check if user profile exists in our database
-      const { data: existingUser, error: userCheckError } = await supabase
+      // Quick check if user exists and get their role
+      const { data: existingUser } = await supabase
         .from('users')
-        .select('*')
+        .select('role')
         .eq('id', user.id)
         .single();
 
-      if (userCheckError && userCheckError.code !== 'PGRST116') {
-        console.error('Error checking user existence:', userCheckError);
-      }
-
-      // If user doesn't exist, create profile
+      // If user doesn't exist, create profile in background - don't wait
       if (!existingUser) {
+        // Create user profile in background (don't await)
         const fullName = user.user_metadata?.full_name || 
                         user.user_metadata?.name || 
                         user.email?.split('@')[0] || 
                         'User';
 
-        // Create user profile (use upsert to handle race conditions)
-        const { error: profileError } = await supabase
-          .from('users')
-          .upsert({
+        // Fire and forget - create all user data in background
+        Promise.all([
+          // Create user profile
+          supabase.from('users').upsert({
             id: user.id,
             email: user.email,
             full_name: fullName,
@@ -114,29 +106,17 @@ export const AuthCallback: React.FC = () => {
               large_text: false,
               show_rsl: true
             }
-          });
+          }),
 
-        if (profileError) {
-          console.error('Error creating user profile:', profileError);
-          // Don't throw here, as the user can still continue
-        }
-
-        // Create user authentication record (use upsert to handle existing records)
-        await supabase
-          .from('user_auth')
-          .upsert({
+          // Create user auth record
+          supabase.from('user_auth').upsert({
             user_id: user.id,
             auth_provider: 'google',
             last_sign_in: new Date().toISOString()
-          })
-          .then(({ error }) => {
-            if (error) console.error('Auth tracking error:', error);
-          });
+          }),
 
-        // Create user settings (use upsert to handle existing records)
-        await supabase
-          .from('user_settings')
-          .upsert({
+          // Create user settings
+          supabase.from('user_settings').upsert({
             user_id: user.id,
             notification_preferences: {
               streak_reminders: true,
@@ -159,68 +139,53 @@ export const AuthCallback: React.FC = () => {
               theme: 'light',
               dashboard_layout: 'default'
             }
+          }),
+
+          // Create audit log
+          createAuditLog(user.id, 'profile_update', {
+            method: 'google_oauth',
+            source: 'auth_callback'
           })
-          .then(({ error }) => {
-            if (error) console.error('Settings creation error:', error);
-          });
-
-        // Create audit log
-        await createAuditLog(user.id, 'profile_update', {
-          method: 'google_oauth',
-          source: 'auth_callback'
+        ]).catch(error => {
+          console.error('Background user setup error:', error);
+          // Don't throw - user can still continue
         });
-      } else {
-        // Update last sign-in for existing user
-        try {
-          const { error } = await supabase
-            .from('user_auth')
-            .upsert({
-              user_id: user.id,
-              auth_provider: 'google',
-              last_sign_in: new Date().toISOString()
-            }, {
-              onConflict: 'user_id,auth_provider'
-            });
-          
-          if (error && error.code !== '23505') {
-            console.error('Auth tracking error:', error);
-          }
-          // Ignore duplicate key errors (23505) as they're expected on repeat logins
-        } catch (err) {
-          console.log('Auth tracking update skipped (user already tracked)');
-        }
 
-        // Create audit log for login
-        await createAuditLog(user.id, 'login', {
-          method: 'google_oauth',
-          source: 'auth_callback'
+      } else {
+        // For existing users, just update last sign-in in background
+        Promise.all([
+          supabase.from('user_auth').upsert({
+            user_id: user.id,
+            auth_provider: 'google',
+            last_sign_in: new Date().toISOString()
+          }, {
+            onConflict: 'user_id,auth_provider'
+          }),
+          createAuditLog(user.id, 'login', {
+            method: 'google_oauth',
+            source: 'auth_callback'
+          })
+        ]).catch(error => {
+          console.error('Background login tracking error:', error);
+          // Don't throw - user can still continue
         });
       }
 
-      // Determine redirect path based on user role using environment configuration
+      // Determine redirect path based on user role
       const userRole = existingUser?.role || 'student';
       const redirectPath = userRole === 'admin' ? '/admin' : '/dashboard';
       
-      // Debug URL configuration if enabled
-      if (import.meta.env.DEV || import.meta.env.VITE_ENABLE_OAUTH_DEBUG) {
-        debugUrlConfig();
-        console.log('🔐 AuthCallback Redirect Path:', redirectPath);
-        console.log('🔐 AuthCallback User Role:', userRole);
-      }
-
-      setState({
-        status: 'success',
-        message: 'Authentication successful! Redirecting to your dashboard...',
-        redirectPath
-      });
-
       // Store user role to avoid race conditions
       localStorage.setItem('userRole', userRole);
 
-      // Redirect after a short delay
-      setTimeout(() => {
-        navigate(redirectPath, { replace: true });
-      }, 1000); // Reduced delay for faster completion
+      setState({
+        status: 'success',
+        message: 'Welcome! Redirecting...',
+        redirectPath
+      });
+
+      // Immediate redirect for better UX
+      navigate(redirectPath, { replace: true });
 
     } catch (error: any) {
       console.error('Auth callback error:', error);
@@ -252,7 +217,7 @@ export const AuthCallback: React.FC = () => {
       // Redirect to login after delay
       setTimeout(() => {
         navigate('/login', { replace: true });
-      }, 2000); // Reduced delay
+      }, 1500); // Further reduced delay
     }
   };
 

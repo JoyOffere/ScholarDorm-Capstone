@@ -129,6 +129,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
   const [loading, setLoading] = useState(true);
   const [daemonEvents, setDaemonEvents] = useState<SessionEvent[]>([]);
   const [isOAuthProcessing, setIsOAuthProcessing] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Use refs to track initialization state synchronously
   const initializationRef = useRef({
@@ -170,10 +171,13 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
     let mounted = true;
     let initializationComplete = false;
 
-    // Skip initialization if OAuth is processing
-    if (isOAuthProcessing) {
+    // Skip initialization if OAuth is processing or already initialized
+    if (isOAuthProcessing || isInitialized) {
       return;
     }
+
+    // Ensure loading is set to true at the start of initialization
+    setLoading(true);
 
     // Reset ref on each initialization
     initializationRef.current = {
@@ -359,21 +363,25 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
           initializationComplete = true;
         }
       } finally {
-        if (mounted && !initializationComplete) {
+        // Always set loading to false when initialization completes, regardless of success/failure
+        if (mounted) {
           setLoading(false);
+          setIsInitialized(true);
+          initializationComplete = true;
         }
       }
     };
 
-    // Set fallback timer to prevent infinite loading (shorter timeout for better UX)
+    // Set fallback timer to prevent infinite loading (aggressive timeout for better UX)
     const fallbackTimer = setTimeout(() => {
-      if (mounted && loading && !initializationComplete && !isOAuthProcessing) {
+      if (mounted && loading && !isOAuthProcessing) {
         console.warn('AuthContext: Initialization timeout, forcing loading=false');
         onInitFallback?.();
         setLoading(false);
+        setIsInitialized(true);
         initializationComplete = true;
       }
-    }, 1500); // Reduced to 1.5s
+    }, 1000); // Reduced to 1 second for quicker recovery
 
     // Initialize auth
     initializeAuth();
@@ -381,6 +389,12 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
     // Set up auth state change listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
+      
+      // Only process relevant auth events to prevent infinite loops
+      if (event === 'INITIAL_SESSION' && initializationComplete) {
+        console.log('AuthContext: Ignoring INITIAL_SESSION after initialization complete');
+        return;
+      }
       
       console.log('AuthContext: Auth state changed:', event);
       
@@ -435,9 +449,18 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
             role: userRole
           };
           
-          setSession(newSession);
-          setUser(userData);
-          saveSessionToStorage(newSession, userData);
+          // Only update if user data has actually changed
+          const hasUserChanged = !user || user.id !== userData.id || user.role !== userData.role;
+          const hasSessionChanged = !session || session.access_token !== newSession.access_token;
+          
+          if (hasSessionChanged) {
+            setSession(newSession);
+          }
+          
+          if (hasUserChanged) {
+            setUser(userData);
+            saveSessionToStorage(newSession, userData);
+          }
           
           // Create audit log for sign-in
           if (event === 'SIGNED_IN') {
@@ -474,7 +497,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       
       subscription.unsubscribe();
     };
-  }, [onInitFallback, user?.role, isOAuthProcessing]);
+  }, [onInitFallback, isOAuthProcessing, isInitialized]);
 
   const refreshSession = async () => {
     console.log('AuthContext: Manually refreshing session...');
