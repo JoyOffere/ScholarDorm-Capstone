@@ -50,6 +50,10 @@ export const QuizAttempt: React.FC = () => {
   const [showRSLVideo, setShowRSLVideo] = useState(false);
   const [rslVideoWatched, setRslVideoWatched] = useState(false);
   const [canStartQuiz, setCanStartQuiz] = useState(false);
+  const [showQuestionRSL, setShowQuestionRSL] = useState(false);
+  const [currentQuestionRSL, setCurrentQuestionRSL] = useState<QuizQuestion | null>(null);
+  const [questionRSLWatched, setQuestionRSLWatched] = useState<Record<string, boolean>>({});
+  const [pendingQuestionIndex, setPendingQuestionIndex] = useState<number | null>(null);
   const timerRef = useRef<number | null>(null);
   useEffect(() => {
     const fetchQuizData = async () => {
@@ -169,6 +173,19 @@ export const QuizAttempt: React.FC = () => {
       }
     };
   }, [timeRemaining, quizComplete]);
+
+  // Check if question has RSL video and show modal before rendering
+  useEffect(() => {
+    if (questions && questions.length > 0 && currentQuestionIndex >= 0) {
+      const question = questions[currentQuestionIndex];
+      if (question.rsl_video_url && !questionRSLWatched[question.id]) {
+        setCurrentQuestionRSL(question);
+        setShowQuestionRSL(true);
+        setPendingQuestionIndex(currentQuestionIndex);
+      }
+    }
+  }, [currentQuestionIndex, questions, questionRSLWatched]);
+
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -200,6 +217,35 @@ export const QuizAttempt: React.FC = () => {
     setShowRSLVideo(false);
     setCanStartQuiz(true);
   };
+
+  const handleWatchQuestionRSL = () => {
+    setShowQuestionRSL(true);
+  };
+
+  const handleQuestionRSLWatched = () => {
+    if (currentQuestionRSL) {
+      setQuestionRSLWatched(prev => ({
+        ...prev,
+        [currentQuestionRSL.id]: true
+      }));
+    }
+    setShowQuestionRSL(false);
+    setCurrentQuestionRSL(null);
+    setPendingQuestionIndex(null);
+  };
+
+  const handleSkipQuestionRSL = () => {
+    if (currentQuestionRSL) {
+      setQuestionRSLWatched(prev => ({
+        ...prev,
+        [currentQuestionRSL.id]: true
+      }));
+    }
+    setShowQuestionRSL(false);
+    setCurrentQuestionRSL(null);
+    setPendingQuestionIndex(null);
+  };
+
   const submitQuiz = async () => {
     if (!quiz || !userId || submitting) return;
     try {
@@ -270,6 +316,37 @@ export const QuizAttempt: React.FC = () => {
     if (questions.length === 0) return null;
     const question = questions[currentQuestionIndex];
     if (!question) return null;
+
+    // Check if question has RSL video that hasn't been watched
+    if (question.rsl_video_url && !questionRSLWatched[question.id]) {
+      return (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
+          <VideoIcon size={48} className="mx-auto text-blue-500 mb-4" />
+          <h3 className="text-lg font-medium text-blue-900 mb-2">
+            RSL Video Available
+          </h3>
+          <p className="text-blue-700 mb-4">
+            There is an RSL instructional video available for this question to help you understand it better.
+          </p>
+          <div className="flex justify-center space-x-4">
+            <button
+              onClick={handleSkipQuestionRSL}
+              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            >
+              Skip Video
+            </button>
+            <button
+              onClick={handleWatchQuestionRSL}
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+            >
+              <PlayIcon size={16} className="mr-2" />
+              Watch RSL Video
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     switch (question.question_type) {
       case 'mcq':
         return renderMultipleChoice(question);
@@ -738,6 +815,69 @@ export const QuizAttempt: React.FC = () => {
                     </button>
                     <button
                       onClick={handleRSLVideoWatched}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                    >
+                      <CheckCircleIcon size={16} className="mr-2" />
+                      Mark as Watched & Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Question-specific RSL Modal */}
+        {showQuestionRSL && currentQuestionRSL && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+              </div>
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      RSL Video for Question {currentQuestionIndex + 1}
+                    </h3>
+                    <button
+                      onClick={() => setShowQuestionRSL(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <XCircleIcon size={24} />
+                    </button>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <p className="text-sm text-gray-600 mb-4">
+                      Watch this RSL video to help you understand the question better.
+                    </p>
+                    <div className="bg-gray-100 rounded-lg p-8 text-center">
+                      <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-600 mb-4">RSL Video Player</p>
+                      <p className="text-sm text-gray-500">
+                        Video URL: {currentQuestionRSL.rsl_video_url}
+                      </p>
+                      {/* In a real implementation, you would add a proper video player here */}
+                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                        <p className="text-blue-800 text-sm">
+                          <strong>Note:</strong> This is a placeholder for the RSL video player. 
+                          In the actual implementation, the video from the question's rsl_video_url would be displayed here.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <button
+                      onClick={handleSkipQuestionRSL}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Skip Video
+                    </button>
+                    <button
+                      onClick={handleQuestionRSLWatched}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                     >
                       <CheckCircleIcon size={16} className="mr-2" />
