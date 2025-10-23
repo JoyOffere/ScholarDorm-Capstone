@@ -33,6 +33,8 @@ export const QuizAttempt: React.FC = () => {
     quizId: string;
   }>();
   const navigate = useNavigate();
+  const searchParams = new URLSearchParams(window.location.search);
+  const isNewAttempt = searchParams.get('new') === 'true';
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [quiz, setQuiz] = useState<Quiz | null>(null);
@@ -72,8 +74,8 @@ export const QuizAttempt: React.FC = () => {
           ascending: false
         }).limit(1);
         if (attemptsError) throw attemptsError;
-        // If there's a completed attempt, show the results
-        if (existingAttempts && existingAttempts.length > 0 && existingAttempts[0].completed_at) {
+        // If there's a completed attempt and this is not a new attempt, show the results
+        if (!isNewAttempt && existingAttempts && existingAttempts.length > 0 && existingAttempts[0].completed_at) {
           setQuizComplete(true);
           setScore(existingAttempts[0].score);
           setPercentage(existingAttempts[0].percentage);
@@ -102,9 +104,9 @@ export const QuizAttempt: React.FC = () => {
           }
         }
         
-        // Check if RSL video should be shown (only for first-time attempts)
-        const shouldShowRSL = lessonRslVideo && !existingAttempts?.length;
-        if (shouldShowRSL) {
+        // Check if RSL video should be shown (for first-time attempts or new attempts if no previous attempts)
+        const shouldShowRSL = lessonRslVideo && (!existingAttempts?.length || isNewAttempt);
+        if (shouldShowRSL && !quizComplete) {
           setShowRSLVideo(true);
           setCanStartQuiz(false);
         } else {
@@ -123,6 +125,11 @@ export const QuizAttempt: React.FC = () => {
         if (quizData.randomize_questions) {
           processedQuestions = [...processedQuestions].sort(() => Math.random() - 0.5);
         }
+        
+        // Debug logging
+        console.log('Loaded questions:', processedQuestions.length);
+        console.log('First question sample:', processedQuestions[0]);
+        
         setQuestions(processedQuestions);
         // Set timer if applicable
         if (quizData.time_limit_minutes && !quizComplete) {
@@ -281,7 +288,20 @@ export const QuizAttempt: React.FC = () => {
     }
   };
   const renderMultipleChoice = (question: QuizQuestion) => {
-    const options = Array.isArray(question.options) ? question.options : [];
+    // Handle both array format and object format for options
+    let options: Array<{value: string, label: string}> = [];
+    
+    if (Array.isArray(question.options)) {
+      // Already in the expected format
+      options = question.options;
+    } else if (question.options && typeof question.options === 'object') {
+      // Convert object format {"A": "answer1", "B": "answer2"} to array format
+      options = Object.entries(question.options).map(([key, value]) => ({
+        value: key,
+        label: String(value)
+      }));
+    }
+    
     const userAnswer = answers[question.id];
     const isCorrect = quizComplete && userAnswer === question.correct_answer;
     const isIncorrected = quizComplete && userAnswer !== question.correct_answer;
@@ -313,7 +333,8 @@ export const QuizAttempt: React.FC = () => {
                   </div>
                   {quiz?.show_answers && <div className="mt-1 text-sm">
                       Correct answer:{' '}
-                      {options.find(opt => opt.value === question.correct_answer)?.label || question.correct_answer}
+                      {options.find(opt => opt.value === question.correct_answer)?.label || 
+                       `${question.correct_answer} (option not found)`}
                     </div>}
                 </div>}
               {question.explanation && quiz?.show_answers && <div className="mt-2 text-sm bg-gray-50 p-2 rounded text-gray-700">
@@ -322,13 +343,42 @@ export const QuizAttempt: React.FC = () => {
             </div>}
         </div>
         <div className="space-y-2">
-          {options.map((option, index) => <div key={index} className="flex items-center">
-              <input type="radio" id={`${question.id}-option-${index}`} name={`question-${question.id}`} value={option.value} checked={userAnswer === option.value} onChange={() => handleAnswerChange(question.id, option.value)} disabled={quizComplete} className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" />
-              <label htmlFor={`${question.id}-option-${index}`} className={`ml-2 block text-gray-700 ${quizComplete && option.value === question.correct_answer ? 'font-bold text-green-700' : ''}`}>
-                {option.label}
-              </label>
-              {quizComplete && option.value === question.correct_answer && <CheckCircleIcon size={16} className="ml-2 text-green-600" />}
-            </div>)}
+          {options.length > 0 ? (
+            options.map((option, index) => (
+              <div key={index} className="flex items-center">
+                <input 
+                  type="radio" 
+                  id={`${question.id}-option-${index}`} 
+                  name={`question-${question.id}`} 
+                  value={option.value} 
+                  checked={userAnswer === option.value} 
+                  onChange={() => handleAnswerChange(question.id, option.value)} 
+                  disabled={quizComplete} 
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300" 
+                />
+                <label 
+                  htmlFor={`${question.id}-option-${index}`} 
+                  className={`ml-2 block text-gray-700 ${
+                    quizComplete && option.value === question.correct_answer ? 'font-bold text-green-700' : ''
+                  }`}
+                >
+                  {option.label}
+                </label>
+                {quizComplete && option.value === question.correct_answer && (
+                  <CheckCircleIcon size={16} className="ml-2 text-green-600" />
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <p className="text-yellow-800 text-sm">
+                <strong>No options available for this question.</strong>
+              </p>
+              <p className="text-yellow-700 text-xs mt-1">
+                Options data: {JSON.stringify(question.options)}
+              </p>
+            </div>
+          )}
         </div>
       </div>;
   };
@@ -537,10 +587,30 @@ export const QuizAttempt: React.FC = () => {
             <div className="text-sm text-gray-600">Passing Score</div>
             <div className="font-bold">{quiz?.passing_score}%</div>
           </div>
-          <div className="pt-4 border-t border-gray-200">
-            <button onClick={() => navigate('/quizzes')} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+          
+          {!isNewAttempt && (
+            <div className="bg-blue-50 rounded-lg p-4 text-center">
+              <p className="text-blue-800 text-sm">
+                <strong>Reviewing Previous Attempt</strong> - You can try again to improve your score
+              </p>
+            </div>
+          )}
+          
+          <div className="pt-4 border-t border-gray-200 flex flex-col sm:flex-row gap-3 justify-center">
+            <button 
+              onClick={() => navigate('/quizzes')} 
+              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+            >
               Back to Quizzes
             </button>
+            {!isNewAttempt && quiz?.max_attempts !== 1 && (
+              <button 
+                onClick={() => navigate(`/quiz/${quizId}?new=true`)} 
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Try Again
+              </button>
+            )}
           </div>
         </div>
       </div>;
@@ -719,17 +789,27 @@ export const QuizAttempt: React.FC = () => {
   return <DashboardLayout title={quiz.title} role="student">
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         {/* Quiz Header */}
-        <div className="mb-6 flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">{quiz.title}</h1>
-            {quiz.description && <p className="text-gray-600 mt-1">{quiz.description}</p>}
-          </div>
-          {timeRemaining !== null && <div className="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg flex items-center">
+        <div className="mb-6">
+          {isNewAttempt && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center text-green-800">
+                <CheckCircleIcon size={16} className="mr-2" />
+                <span className="text-sm font-medium">New Attempt - Fresh Start!</span>
+              </div>
+            </div>
+          )}
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">{quiz.title}</h1>
+              {quiz.description && <p className="text-gray-600 mt-1">{quiz.description}</p>}
+            </div>
+            {timeRemaining !== null && <div className="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg flex items-center">
               <ClockIcon size={18} className="mr-2" />
               <span className="font-mono font-medium">
                 {formatTime(timeRemaining)}
               </span>
             </div>}
+          </div>
         </div>
         {/* Instructions */}
         {quiz.instructions && <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../contexts/AuthContext';
-import { BookOpenIcon, ClipboardListIcon, ClockIcon, TrophyIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon } from 'lucide-react';
+import { BookOpenIcon, ClipboardListIcon, ClockIcon, TrophyIcon, ArrowRightIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, EyeIcon } from 'lucide-react';
 interface Quiz {
   id: string;
   title: string;
@@ -136,8 +136,12 @@ export const StudentQuizzes: React.FC = () => {
       setLoading(false);
     }
   };
-  const startQuiz = (quizId: string) => {
-    navigate(`/quiz/${quizId}`);
+  const startQuiz = (quizId: string, isRetake: boolean = false) => {
+    if (isRetake) {
+      navigate(`/quiz/${quizId}?new=true`);
+    } else {
+      navigate(`/quiz/${quizId}`);
+    }
   };
   return <DashboardLayout title="Quizzes" role="student">
       <div className="mb-6">
@@ -218,10 +222,16 @@ export const StudentQuizzes: React.FC = () => {
                         {quiz.highest_score ?? 0}%
                       </div>
                     </div>
-                    <button onClick={() => startQuiz(quiz.id)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
-                      Try Again
-                      <ArrowRightIcon size={16} className="ml-1" />
-                    </button>
+                    <div className="flex space-x-2">
+                      <button onClick={() => startQuiz(quiz.id, false)} className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors flex items-center text-sm">
+                        <EyeIcon size={14} className="mr-1" />
+                        Review
+                      </button>
+                      <button onClick={() => startQuiz(quiz.id, true)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+                        Try Again
+                        <ArrowRightIcon size={16} className="ml-1" />
+                      </button>
+                    </div>
                   </div> : <div className="flex justify-between items-center">
                     {(quiz.user_attempts ?? 0) > 0 && <div className="text-sm text-gray-600">
                         Attempts: {quiz.user_attempts ?? 0}
