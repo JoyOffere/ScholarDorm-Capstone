@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
-import { 
-  UsersIcon, BookIcon, ClipboardListIcon, TrendingUpIcon, ActivityIcon, 
-  BellIcon, SettingsIcon, BarChartIcon, PlusIcon, EyeIcon, CalendarIcon, 
+import {
+  UsersIcon, BookIcon, ClipboardListIcon, TrendingUpIcon, ActivityIcon,
+  BellIcon, SettingsIcon, BarChartIcon, PlusIcon, EyeIcon, CalendarIcon,
   ArrowRightIcon, GraduationCapIcon, GamepadIcon, MessageSquareIcon,
   AlertCircleIcon, CheckCircleIcon, ClockIcon, Award, Target, TrendingDownIcon, XIcon, VideoIcon
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
+import { useAuth } from '../../../contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 interface EnhancedStats {
@@ -40,6 +41,7 @@ interface ChartData {
 }
 
 export const AdminDashboard: React.FC = () => {
+  const { user, session } = useAuth();
   const [stats, setStats] = useState<EnhancedStats>({
     totalUsers: 0,
     totalCourses: 0,
@@ -497,7 +499,7 @@ export const AdminDashboard: React.FC = () => {
               </div>
               <div className="p-8">
                 <div className="text-center mb-8">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to the Admin Dashboard</h2>
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2">Welcome to the Admin Dashboard, {session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Admin'}</h2>
                   <p className="text-gray-600 text-lg">Murakaza neza! (Welcome in Kinyarwanda)</p>
                 </div>
                 <div className="mb-6">
@@ -545,7 +547,7 @@ export const AdminDashboard: React.FC = () => {
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-white opacity-5 rounded-full -ml-16 -mb-16"></div>
           <div className="flex flex-col md:flex-row items-center justify-between relative z-10 gap-6">
             <div>
-              <h1 className="text-3xl font-bold mb-2">Welcome Back, Admin!</h1>
+              <h1 className="text-3xl font-bold mb-2">Welcome Back, {session?.user?.user_metadata?.full_name || session?.user?.email?.split('@')[0] || 'Admin'}!</h1>
               <p className="text-lg opacity-90">
                 Monitor and manage your educational platform with ease.
                 {stats.pendingFeedback > 0 && (

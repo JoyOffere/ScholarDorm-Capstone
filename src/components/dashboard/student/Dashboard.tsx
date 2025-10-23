@@ -360,7 +360,7 @@ export const StudentDashboard: React.FC = () => {
           <div className="bg-gradient-to-r from-blue-500 to-blue-700 rounded-lg shadow-md p-6 text-white">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h1 className="text-2xl font-bold mb-2">Welcome back, {user && 'user_metadata' in user ? (user.user_metadata as any).full_name || user.email?.split('@')[0] || 'Student' : user?.email?.split('@')[0] || 'Student'}!</h1>
+                <h1 className="text-2xl font-bold mb-2">Welcome back, {(user as any)?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student'}!</h1>
                 <p className="opacity-90">
                   Continue your learning journey and keep your streak going.
                 </p>

@@ -1,26 +1,34 @@
-# TODO: Ensure useAuth is called on all student pages
+# Modal Enhancements Task - COMPLETED
 
-## Information Gathered
-- Reviewed all student dashboard components in `src/components/dashboard/student/`
-- Identified that none of the components were using the `useAuth` hook from `AuthContext`
-- Components were directly calling `supabase.auth.getUser()` for authentication
+## Overview
+Add click-outside-to-close functionality and enhance animations for WelcomeModal and RSLModal components.
 
-## Plan
-- Add `import { useAuth } from '../../../contexts/AuthContext';` to each student dashboard component
-- Add `const { user } = useAuth();` at the beginning of each component function
-- Ensure the AuthContext is properly initialized and used across all student pages
+## Tasks
+- [x] Update WelcomeModal.tsx to add click-outside close and enhance animations
+- [x] Update RSLModal.tsx to add click-outside close and enhance animations
+- [x] Test both modals for proper functionality (skipped per user request)
 
-## Dependent Files Edited
-- [x] `src/components/dashboard/student/Dashboard.tsx`
-- [x] `src/components/dashboard/student/Settings.tsx`
-- [x] `src/components/dashboard/student/Quizzes.tsx`
-- [x] `src/components/dashboard/student/Notifications.tsx`
-- [x] `src/components/dashboard/student/Games.tsx`
-- [x] `src/components/dashboard/student/Achievements.tsx`
-- [x] `src/components/dashboard/student/Profile.tsx`
+## Files to Edit
+- landingPage/components/WelcomeModal.tsx
+- src/components/auth/RSLModal.tsx
 
-## Followup Steps
-- [ ] Test the application to ensure all student pages load correctly
-- [ ] Verify that authentication state is properly managed
-- [ ] Check for any console errors related to authentication
-- [ ] Commit changes to version control
+## Notes
+- Ensure modal content clicks don't trigger close
+- Enhance existing framer-motion animations with more spring effects
+- Maintain accessibility features
+
+---
+
+# Terms Page Edit Task
+
+## Overview
+Edit the entire Terms of Service page based on the landing page design and style.
+
+## Tasks
+- [x] Analyze current TermsOfService.tsx component
+- [x] Review landing page components for design patterns
+- [x] Update TermsOfService.tsx with landing page styling
+- [x] Ensure responsive design and accessibility
+
+## Files to Edit
+- src/components/legal/TermsOfService.tsx
