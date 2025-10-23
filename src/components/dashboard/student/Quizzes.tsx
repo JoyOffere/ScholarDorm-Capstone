@@ -59,14 +59,13 @@ export const StudentQuizzes: React.FC = () => {
         error: quizzesError
       } = await supabase.from('enhanced_quizzes').select(`
           *,
-          lesson:enhanced_lessons(title, course_id),
           enhanced_quiz_questions(count)
         `).eq('is_published', true).order('created_at', {
         ascending: false
       });
       if (quizzesError) throw quizzesError;
       // Get course titles
-      const courseIds = quizzesData?.map(quiz => quiz.lesson?.course_id).filter(Boolean) || [];
+      const courseIds = quizzesData?.map(quiz => quiz.course_id).filter(Boolean) || [];
       const {
         data: coursesData,
         error: coursesError
@@ -116,8 +115,8 @@ export const StudentQuizzes: React.FC = () => {
         return {
           ...quiz,
           question_count: quiz.enhanced_quiz_questions?.length || 0,
-          course_title: quiz.lesson?.course_id ? courseTitleMap[quiz.lesson.course_id] ?? 'Unknown Course' : 'Unknown Course',
-          lesson_title: quiz.lesson?.title ?? 'Unknown Lesson',
+          course_title: quiz.course_id ? courseTitleMap[quiz.course_id] ?? 'Unknown Course' : 'Unknown Course',
+          lesson_title: 'Quiz Assessment',
           user_attempts: attempts?.count ?? 0,
           highest_score: attempts?.highestScore ?? 0,
           status

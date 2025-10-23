@@ -5,7 +5,13 @@ import { supabase } from '../../../lib/supabase';
 import { ProgressTracker } from './ProgressTracker';
 import { RSLWidget } from '../../common/RSLWidget';
 import { RSLModal } from '../../auth/RSLModal';
-import { DatabaseUtils } from '../../../lib/database-utils';
+import { 
+  getAllStudentDashboardDataUltraFast,
+  StudentDashboardStats,
+  StudentCourse,
+  StudentAnnouncement,
+  StudentQuiz
+} from '../../../lib/supabase-utils';
 import { useAuth } from '../../../contexts/AuthContext';
 import { BookOpenIcon, GraduationCapIcon, ClipboardListIcon, GamepadIcon, TrophyIcon, ArrowRightIcon, CheckCircleIcon, StarIcon, AlertCircleIcon, BellIcon, AwardIcon, ActivityIcon, TrendingUpIcon, BarChart3Icon, FlameIcon, VideoIcon, RefreshCwIcon } from 'lucide-react';
 export const StudentDashboard: React.FC = () => {
@@ -13,12 +19,12 @@ export const StudentDashboard: React.FC = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [recentCourses, setRecentCourses] = useState<any[]>([]);
-  const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [recentCourses, setRecentCourses] = useState<StudentCourse[]>([]);
+  const [announcements, setAnnouncements] = useState<StudentAnnouncement[]>([]);
+  const [quizzes, setQuizzes] = useState<StudentQuiz[]>([]);
   const [showStreakModal, setShowStreakModal] = useState(false);
   const [showRSLModal, setShowRSLModal] = useState(false);
-  const [dashboardStats, setDashboardStats] = useState({
+  const [dashboardStats, setDashboardStats] = useState<StudentDashboardStats>({
     totalCourses: 0,
     completedCourses: 0,
     currentStreak: 0,
@@ -31,6 +37,11 @@ export const StudentDashboard: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
   useEffect(() => {
+    // Don't run effect until user is available from auth context
+    if (!user?.id) {
+      return;
+    }
+    
     mountedRef.current = true;
     
     const fetchUserData = async () => {
@@ -43,34 +54,28 @@ export const StudentDashboard: React.FC = () => {
         
         setLoading(true);
         setError(null);
-        // Fallback timer: if loading takes too long, un-block the UI and allow data to populate when it finishes
-        const dashboardFallback = setTimeout(() => {
-          console.warn('Dashboard loading fallback: forcing loading=false');
-          if (mountedRef.current) {
-            setLoading(false);
-            setError('Dashboard loading timed out');
-          }
-        }, 10000);
-
-        // Check database connection first
-        const isConnected = await DatabaseUtils.checkConnection();
-        if (!isConnected) {
-          throw new Error('Unable to connect to database. Please check your connection.');
+        // Import session cache for instant data loading
+        const { sessionCache: persistentCache } = await import('../../../lib/session-cache');
+        
+        // Try to load cached dashboard data first for instant display
+        const cachedDashboardData = persistentCache.getDashboardData(user.id);
+        if (cachedDashboardData && mountedRef.current) {
+          console.log('Loading dashboard from cache for instant display');
+          if (cachedDashboardData.stats) setDashboardStats(cachedDashboardData.stats);
+          if (cachedDashboardData.recentCourses) setRecentCourses(cachedDashboardData.recentCourses);
+          if (cachedDashboardData.announcements) setAnnouncements(cachedDashboardData.announcements);
+          if (cachedDashboardData.quizzes) setQuizzes(cachedDashboardData.quizzes);
+          setLoading(false); // Show cached data immediately
         }
 
-        // Get current user with timeout
-        const { data: { user } } = await Promise.race([
-          supabase.auth.getUser(),
-          new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error('Authentication timeout')), 5000)
-          )
-        ]);
+        // Skip database connection check for ultra-fast loading
 
-        if (signal.aborted || !mountedRef.current) return;
-        
-        if (!user) {
+        // Use user from auth context - no need for additional auth call
+        if (!user?.id) {
           throw new Error('User not authenticated');
         }
+
+        if (signal.aborted || !mountedRef.current) return;
 
         setUserId(user.id);
 
@@ -105,46 +110,34 @@ export const StudentDashboard: React.FC = () => {
           }
         }
 
-        // Fetch all data in parallel with error handling
-        const fetchPromises = [
-          DatabaseUtils.fetchUserCourses(user.id, 3, signal).catch(err => {
-            console.error('Courses fetch error:', err);
-            return [];
-          }),
-          DatabaseUtils.fetchAnnouncements(3, signal).catch(err => {
-            console.error('Announcements fetch error:', err);
-            return [];
-          }),
-          DatabaseUtils.fetchUserQuizzes(user.id, signal).catch(err => {
-            console.error('Quizzes fetch error:', err);
-            return [];
-          }),
-          fetchDashboardStats(user.id, signal).catch(err => {
-            console.error('Stats fetch error:', err);
-            return null;
-          })
-        ];
-
-        try {
-          const [coursesData, announcementsData, quizzesData] = await Promise.all(fetchPromises);
-          if (signal.aborted || !mountedRef.current) return;
-          setRecentCourses(coursesData || []);
-          setAnnouncements(announcementsData || []);
-          setQuizzes(quizzesData || []);
-          // Clear timeout if we successfully loaded
-          clearTimeout(dashboardFallback);
-        } catch (err) {
-          console.error('Error or timeout during dashboard data loading:', err);
-          // Keep existing error state, DatabaseUtils.clearCache() will be called below
-        }
+        // ULTRA-FAST: Get all dashboard data instantly
+        const { stats, courses, announcements, quizzes } = await getAllStudentDashboardDataUltraFast(user.id);
+        
+        if (!mountedRef.current) return;
+        
+        // Update all state instantly
+        setDashboardStats(stats);
+        setRecentCourses(courses);
+        setAnnouncements(announcements);
+        setQuizzes(quizzes);
+        
+        // Cache the dashboard data for instant future access
+        const dashboardDataToCache = {
+          stats,
+          recentCourses: courses,
+          announcements,
+          quizzes,
+        };
+        persistentCache.saveDashboardData(user.id, dashboardDataToCache);
+        
+        console.log('⚡ Student Dashboard: Data loaded and cached for instant future access!');
 
       } catch (error: any) {
         if (!signal.aborted && mountedRef.current) {
           console.error('Error fetching user data:', error);
           setError(error.message || 'Failed to load dashboard data');
           
-          // Clear cache on error to prevent stuck state
-          DatabaseUtils.clearCache();
+          // No cache clearing needed with ultra-fast approach
         }
       } finally {
         if (mountedRef.current) {
@@ -164,7 +157,7 @@ export const StudentDashboard: React.FC = () => {
         abortControllerRef.current.abort();
       }
     };
-  }, []);
+  }, [user]);
 
   // Retry function for failed loads
   const retryLoad = () => {
@@ -172,8 +165,21 @@ export const StudentDashboard: React.FC = () => {
     window.location.reload(); // Full refresh to reset state
   };
 
+  // Utility functions for date formatting
+  const formatTimeAgo = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+    const diffDays = Math.floor(diffHours / 24);
 
-
+    if (diffDays > 0) return `${diffDays}d ago`;
+    if (diffHours > 0) return `${diffHours}h ago`;
+    if (diffMins > 0) return `${diffMins}m ago`;
+    return 'Just now';
+  };
 
   const fetchDashboardStats = async (userId: string, signal?: AbortSignal) => {
     try {
@@ -339,12 +345,11 @@ export const StudentDashboard: React.FC = () => {
             </button>
             <button
               onClick={() => {
-                DatabaseUtils.clearCache();
                 window.location.href = '/';
               }}
               className="inline-flex items-center px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
             >
-              Sign Out & Clear Data
+              Sign Out & Return Home
             </button>
           </div>
         </div>
@@ -488,14 +493,14 @@ export const StudentDashboard: React.FC = () => {
                 </div> : recentCourses.map(item => <div key={item.id} className="p-4 hover:bg-gray-50">
                     <div className="flex items-start">
                       <div className="h-12 w-12 rounded overflow-hidden bg-gray-100 flex-shrink-0">
-                        {item.course.image_url ? <img src={item.course.image_url} alt={item.course.title} className="h-12 w-12 object-cover" /> : <div className="h-12 w-12 flex items-center justify-center bg-blue-100 text-blue-600">
+                        {item.image_url ? <img src={item.image_url} alt={item.title} className="h-12 w-12 object-cover" /> : <div className="h-12 w-12 flex items-center justify-center bg-blue-100 text-blue-600">
                             <BookOpenIcon size={24} />
                           </div>}
                       </div>
                       <div className="ml-3 flex-1 min-w-0">
                         <div className="flex items-center justify-between">
                           <h3 className="text-sm font-medium text-gray-900 truncate">
-                            {item.course.title}
+                            {item.title}
                           </h3>
                           <span className="text-xs text-gray-500">
                             {formatLastAccessed(item.last_accessed)}
@@ -504,20 +509,19 @@ export const StudentDashboard: React.FC = () => {
                         <div className="mt-1 flex items-center">
                           <div className="flex-1 bg-gray-200 rounded-full h-1.5">
                             <div className="bg-blue-600 h-1.5 rounded-full" style={{
-                        width: `${item.progress_percentage}%`
+                        width: `${item.progress}%`
                       }}></div>
                           </div>
                           <span className="ml-2 text-xs text-gray-500">
-                            {item.progress_percentage}%
+                            {item.progress}%
                           </span>
                         </div>
                         <div className="mt-1 flex justify-between">
                           <span className="text-xs text-gray-500">
-                            {item.course.subject} •{' '}
-                            {item.course.difficulty_level.charAt(0).toUpperCase() + item.course.difficulty_level.slice(1)}
+                            Course • Active
                           </span>
                           <Link to="/learning" className="text-xs text-blue-600 hover:text-blue-800">
-                            {item.progress_percentage > 0 ? 'Continue' : 'Start'}
+                            {item.progress > 0 ? 'Continue' : 'Start'}
                           </Link>
                         </div>
                       </div>
@@ -548,9 +552,9 @@ export const StudentDashboard: React.FC = () => {
                 </div> : announcements.map(announcement => <div key={announcement.id} className="p-4 hover:bg-gray-50">
                     <div className="flex items-start">
                       <div className="h-10 w-10 rounded-full overflow-hidden bg-gray-100 flex-shrink-0">
-                        {announcement.author?.avatar_url ? <img src={announcement.author.avatar_url} alt={announcement.author.full_name} className="h-10 w-10 object-cover" /> : <div className="h-10 w-10 flex items-center justify-center bg-purple-100 text-purple-600">
+                        <div className="h-10 w-10 flex items-center justify-center bg-purple-100 text-purple-600">
                             <AlertCircleIcon size={20} />
-                          </div>}
+                          </div>
                       </div>
                       <div className="ml-3 flex-1 min-w-0">
                         <div className="flex items-center justify-between">
@@ -558,14 +562,14 @@ export const StudentDashboard: React.FC = () => {
                             {announcement.title}
                           </h3>
                           <span className="text-xs text-gray-500">
-                            {formatPublishDate(announcement.publish_date)}
+                            {formatTimeAgo(announcement.created_at)}
                           </span>
                         </div>
                         <p className="mt-1 text-sm text-gray-600 line-clamp-2">
                           {announcement.content}
                         </p>
                         <div className="mt-1 text-xs text-gray-500">
-                          By {announcement.author?.full_name || 'Administrator'}
+                          By Administrator
                         </div>
                       </div>
                     </div>
@@ -603,15 +607,13 @@ export const StudentDashboard: React.FC = () => {
                           {quiz.title}
                         </h3>
                         <p className="text-xs text-gray-500">
-                          {quiz.lesson?.course?.title} • {quiz.lesson?.title}
+                          {quiz.course_title} • {quiz.questions_count} questions
                         </p>
                       </div>
-                      {quiz.attempted ? quiz.passed ? <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 flex items-center">
+                      {quiz.completed ? <span className="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800 flex items-center">
                             <CheckCircleIcon size={12} className="mr-1" />
-                            Passed
-                          </span> : <Link to={`/quiz/${quiz.id}`} className="px-3 py-1 text-xs font-medium rounded-lg bg-yellow-100 text-yellow-800">
-                            Try Again
-                          </Link> : <Link to={`/quiz/${quiz.id}`} className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-600 text-white">
+                            Score: {quiz.score}%
+                          </span> : <Link to={`/quiz/${quiz.id}`} className="px-3 py-1 text-xs font-medium rounded-lg bg-blue-600 text-white">
                           Start Quiz
                         </Link>}
                     </div>

@@ -73,23 +73,87 @@ export const Leaderboard: React.FC = () => {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
-      let query = supabase.rpc('get_leaderboard', {
-        time_period: timeframe,
-        course_filter: courseId,
-        quiz_filter: quizId,
-        current_user_id: currentUserId || ''
-      });
-      const {
-        data,
-        error
-      } = await query;
+      
+      // Simple leaderboard query using quiz attempts directly
+      let query = supabase
+        .from('enhanced_quiz_attempts')
+        .select(`
+          user_id,
+          score,
+          completed_at,
+          quiz_id,
+          users!inner(id, email),
+          enhanced_quizzes!inner(id, title, course_id)
+        `)
+        .not('completed_at', 'is', null)  // Only completed attempts
+        .order('score', { ascending: false })
+        .order('completed_at', { ascending: true })
+        .limit(50);
+
+      // Apply time filter
+      if (timeframe !== 'all_time') {
+        const daysAgo = timeframe === 'week' ? 7 : 30;
+        const dateThreshold = new Date();
+        dateThreshold.setDate(dateThreshold.getDate() - daysAgo);
+        query = query.gte('completed_at', dateThreshold.toISOString());
+      }
+
+      // Apply course filter
+      if (courseId) {
+        query = query.eq('enhanced_quizzes.course_id', courseId);
+      }
+
+      // Apply quiz filter
+      if (quizId) {
+        query = query.eq('quiz_id', quizId);
+      }
+
+      const { data, error } = await query;
       if (error) throw error;
-      // Add rank to each entry
-      const rankedData = data.map((entry: any, index: number) => ({
-        ...entry,
-        rank: index + 1
-      }));
-      setLeaderboard(rankedData);
+      
+      // Process data to aggregate by user and match expected interface
+      const userScores = new Map<string, {
+        user_id: string;
+        full_name: string;
+        avatar_url: string | null;
+        scores: number[];
+        quizzes_completed: number;
+        total_score: number;
+        highest_score: number;
+      }>();
+
+      data?.forEach((attempt: any) => {
+        const userId = attempt.user_id;
+        const existing = userScores.get(userId);
+        
+        if (existing) {
+          existing.scores.push(attempt.score);
+          existing.quizzes_completed += 1;
+          existing.total_score += attempt.score;
+          existing.highest_score = Math.max(existing.highest_score, attempt.score);
+        } else {
+          userScores.set(userId, {
+            user_id: userId,
+            full_name: attempt.users?.email?.split('@')[0] || 'Anonymous',
+            avatar_url: null,
+            scores: [attempt.score],
+            quizzes_completed: 1,
+            total_score: attempt.score,
+            highest_score: attempt.score,
+          });
+        }
+      });
+
+      // Convert to array and sort by total score
+      const leaderboardData = Array.from(userScores.values())
+        .sort((a, b) => b.total_score - a.total_score)
+        .map((entry, index) => ({
+          ...entry,
+          rank: index + 1,
+          is_current_user: entry.user_id === currentUserId,
+        }));
+
+      setLeaderboard(leaderboardData);
     } catch (error) {
       console.error('Error fetching leaderboard:', error);
     } finally {

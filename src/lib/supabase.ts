@@ -7,25 +7,37 @@ if (!supabaseUrl || !supabaseKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// Create Supabase client with optimized configuration for faster connections
+// Create single optimized Supabase client with maximum performance
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: false, // Disable for faster page loads
+    detectSessionInUrl: true,
     flowType: 'pkce'
   },
   global: {
     headers: {
-      'x-client-info': 'scholardorm-web'
+      'x-client-info': 'scholardorm-web',
+      'Cache-Control': 'max-age=300' // Cache for 5 minutes
     }
   },
   realtime: {
     params: {
-      eventsPerSecond: 10
+      eventsPerSecond: 50
     }
   },
   db: {
     schema: 'public'
   }
+});
+
+// Helper function to create fast query options
+export const getFastQueryOptions = () => ({
+  count: 'estimated' as const,
+  head: true
+});
+
+// Helper function to get headers for fast queries
+export const getFastHeaders = () => ({
+  'Prefer': 'count=estimated'
 });

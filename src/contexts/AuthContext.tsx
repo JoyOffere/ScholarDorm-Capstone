@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase';
 import { createAuditLog } from '../lib/supabase-utils';
 import { Session } from '@supabase/supabase-js';
 import { sessionDaemon, SessionEvent } from '../lib/session-daemon';
+import { logger, auth as authLog } from '../lib/logger';
+import { sessionCache as persistentCache } from '../lib/session-cache';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 
@@ -18,6 +20,7 @@ type AuthContextType = {
   loading: boolean;
   signOut: () => Promise<void>;
   refreshSession: () => Promise<void>;
+  handleOAuthCallback: () => Promise<void>;
   daemonStatus: () => any;
   getDaemonEvents: () => SessionEvent[];
 };
@@ -107,15 +110,13 @@ const loadSessionFromStorage = (): { session: Session | null; user: User | null 
 
 const clearAllStorage = () => {
   try {
-    // Clear specific auth keys
-    Object.values(STORAGE_KEYS).forEach(key => {
-      localStorage.removeItem(key);
-    });
+    // Use the new persistent cache to clear everything
+    persistentCache.clearSession();
     
-    // Clear legacy userRole key
+    // Clear legacy keys for safety
     localStorage.removeItem('userRole');
     
-    // Clear cache
+    // Clear old cache
     sessionCache = null;
   } catch (error) {
     console.warn('Failed to clear storage:', error);
@@ -127,6 +128,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [daemonEvents, setDaemonEvents] = useState<SessionEvent[]>([]);
+  const [isOAuthProcessing, setIsOAuthProcessing] = useState(false);
 
   // Use refs to track initialization state synchronously
   const initializationRef = useRef({
@@ -135,9 +137,43 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
     session: null as Session | null
   });
 
+  // Session daemon event handler - defined outside useEffect for broader scope
+  const handleDaemonEvent = (event: SessionEvent) => {
+    setDaemonEvents(prev => [event, ...prev.slice(0, 49)]);
+    
+    switch (event.type) {
+      case 'refresh':
+        if (event.data?.success) {
+          authLog('Session refreshed by daemon');
+        }
+        break;
+        
+      case 'expire':
+        authLog('Session expired, clearing state');
+        setSession(null);
+        setUser(null);
+        clearAllStorage();
+        break;
+        
+      case 'error':
+        if (event.data?.fatal) {
+          logger.error('Fatal session error from daemon', event.data);
+          setSession(null);
+          setUser(null);
+          clearAllStorage();
+        }
+        break;
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
     let initializationComplete = false;
+
+    // Skip initialization if OAuth is processing
+    if (isOAuthProcessing) {
+      return;
+    }
 
     // Reset ref on each initialization
     initializationRef.current = {
@@ -146,60 +182,36 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       session: null
     };
     
-    // Session daemon event handler
-    const handleDaemonEvent = (event: SessionEvent) => {
+    // Modified handler that checks mounted state
+    const mountedHandleDaemonEvent = (event: SessionEvent) => {
       if (!mounted || !initializationComplete) return;
-      
-      setDaemonEvents(prev => [event, ...prev.slice(0, 49)]);
-      
-      switch (event.type) {
-        case 'refresh':
-          if (event.data?.success) {
-            console.log('AuthContext: Session refreshed by daemon');
-          }
-          break;
-          
-        case 'expire':
-          console.log('AuthContext: Session expired, clearing state');
-          if (mounted) {
-            setSession(null);
-            setUser(null);
-            clearAllStorage();
-          }
-          break;
-          
-        case 'error':
-          if (event.data?.fatal && mounted) {
-            console.error('AuthContext: Fatal session error from daemon');
-            setSession(null);
-            setUser(null);
-            clearAllStorage();
-          }
-          break;
-      }
+      handleDaemonEvent(event);
     };
     
     const initializeAuth = async () => {
-      console.log('AuthContext: Initializing authentication...');
+      authLog('Initializing authentication...');
 
       try {
-        // First, try to load from storage for immediate UI responsiveness
-        const storedData = loadSessionFromStorage();
+        // First, try to load from persistent cache for immediate UI responsiveness
+        const cachedSession = persistentCache.getSession();
 
-        if (storedData.session && storedData.user && mounted) {
-          console.log('AuthContext: Restoring session from storage');
-          setSession(storedData.session);
-          setUser(storedData.user);
+        if (cachedSession && cachedSession.session && cachedSession.user && mounted) {
+          authLog('Restoring session from persistent cache', { 
+            userId: cachedSession.user.id, 
+            role: cachedSession.user.role 
+          });
+          setSession(cachedSession.session);
+          setUser(cachedSession.user);
 
           // Update ref synchronously
           initializationRef.current = {
             complete: true,
-            user: storedData.user,
-            session: storedData.session
+            user: cachedSession.user,
+            session: cachedSession.session
           };
 
           // Start session daemon immediately for background validation
-          sessionDaemon.addEventListener(handleDaemonEvent);
+          sessionDaemon.addEventListener(mountedHandleDaemonEvent);
           sessionDaemon.start();
           initializationComplete = true;
 
@@ -213,7 +225,10 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
             if (!mounted) return;
 
             if (currentSession && !error) {
-              console.log('AuthContext: Session validated successfully');
+              authLog('Session validated successfully', { 
+                userId: currentSession.user.id,
+                expires_at: currentSession.expires_at 
+              });
 
               // Update user role if needed
               try {
@@ -223,17 +238,17 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
                   .eq('id', currentSession.user.id)
                   .single();
 
-                const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : storedData.user.role;
+                const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : cachedSession.user.role;
 
-                if (userRole !== storedData.user.role) {
+                if (userRole !== cachedSession.user.role) {
                   const updatedUser: User = {
-                    ...storedData.user,
+                    ...cachedSession.user,
                     role: userRole
                   };
                   setUser(updatedUser);
-                  saveSessionToStorage(currentSession, updatedUser);
+                  persistentCache.saveSession(currentSession, updatedUser);
                 } else {
-                  saveSessionToStorage(currentSession, storedData.user);
+                  persistentCache.saveSession(currentSession, cachedSession.user);
                 }
 
               } catch (roleErr) {
@@ -241,7 +256,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
               }
 
             } else {
-              console.log('AuthContext: Stored session invalid, clearing');
+              authLog('Stored session invalid, clearing');
               if (mounted) {
                 setSession(null);
                 setUser(null);
@@ -336,7 +351,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
         }
 
       } catch (error) {
-        console.error('AuthContext: Initialization error:', error);
+        logger.error('Authentication initialization error', error);
         if (mounted) {
           setSession(null);
           setUser(null);
@@ -350,15 +365,15 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       }
     };
 
-    // Set fallback timer to prevent infinite loading (reduced from 5s to 2s for better responsiveness)
+    // Set fallback timer to prevent infinite loading (shorter timeout for better UX)
     const fallbackTimer = setTimeout(() => {
-      if (mounted && loading && !initializationComplete) {
+      if (mounted && loading && !initializationComplete && !isOAuthProcessing) {
         console.warn('AuthContext: Initialization timeout, forcing loading=false');
         onInitFallback?.();
         setLoading(false);
         initializationComplete = true;
       }
-    }, 2000);
+    }, 1500); // Reduced to 1.5s
 
     // Initialize auth
     initializeAuth();
@@ -453,13 +468,13 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       
       // Stop session daemon and remove event listener
       if (initializationComplete) {
-        sessionDaemon.removeEventListener(handleDaemonEvent);
+        sessionDaemon.removeEventListener(mountedHandleDaemonEvent);
         sessionDaemon.stop();
       }
       
       subscription.unsubscribe();
     };
-  }, [onInitFallback, user?.role]);
+  }, [onInitFallback, user?.role, isOAuthProcessing]);
 
   const refreshSession = async () => {
     console.log('AuthContext: Manually refreshing session...');
@@ -544,6 +559,132 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
   const daemonStatus = () => sessionDaemon.getStatus();
   const getDaemonEvents = () => daemonEvents;
 
+  const handleOAuthCallback = async () => {
+    logger.oauth('Handling OAuth callback...');
+    
+    setIsOAuthProcessing(true);
+    setLoading(true);
+
+    try {
+      // First check if we're in an actual OAuth callback by looking at URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasOAuthParams = urlParams.has('code') || urlParams.has('access_token') || urlParams.has('error');
+      const oauthFlowStarted = sessionStorage.getItem('oauth_flow_started') === 'true';
+      
+      if (!hasOAuthParams && !oauthFlowStarted) {
+        logger.oauth('No OAuth parameters found in URL, not an OAuth callback');
+        throw new Error('Not an OAuth callback - no authorization parameters found');
+      }
+
+      // For Supabase OAuth, try to get session immediately first
+      let { data: { session: oauthSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      // If no session yet, wait briefly for Supabase to process the URL
+      if (!oauthSession && !sessionError) {
+        await new Promise(resolve => setTimeout(resolve, 200)); // Reduced wait time
+        ({ data: { session: oauthSession }, error: sessionError } = await supabase.auth.getSession());
+      }
+      
+      if (sessionError) {
+        throw new Error(`OAuth session error: ${sessionError.message}`);
+      }
+
+      if (!oauthSession) {
+        // Check if there was an OAuth error in the URL
+        const errorCode = urlParams.get('error');
+        const errorDescription = urlParams.get('error_description');
+        
+        if (errorCode) {
+          throw new Error(`OAuth failed: ${errorCode} - ${errorDescription || 'Unknown error'}`);
+        }
+        
+        // One more quick retry if still no session
+        await new Promise(resolve => setTimeout(resolve, 300));
+        const { data: retryData } = await supabase.auth.getSession();
+        
+        if (!retryData.session) {
+          throw new Error('No OAuth session found - authentication may have been cancelled or expired');
+        }
+        
+        oauthSession = retryData.session;
+      }
+
+      const oauthUser = oauthSession.user;
+      
+      if (!oauthUser) {
+        throw new Error('No user data in OAuth session');
+      }
+
+      logger.oauth('OAuth session retrieved, setting up user...', { 
+        userId: oauthUser.id,
+        email: oauthUser.email 
+      });
+
+      // Check if user exists in our database
+      const { data: existingUser, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', oauthUser.id)
+        .single();
+
+      let userRole: 'student' | 'admin' = 'student';
+
+      if (userError && userError.code !== 'PGRST116') {
+        logger.error('Error checking user existence', userError);
+      }
+
+      if (existingUser) {
+        userRole = existingUser.role || 'student';
+        logger.oauth('Existing user found with role', { role: userRole, userId: oauthUser.id });
+      } else {
+        logger.oauth('New OAuth user, will be created by callback handler', { userId: oauthUser.id });
+      }
+
+      // Create user object
+      const userData: User = {
+        id: oauthUser.id,
+        email: oauthUser.email,
+        role: userRole
+      };
+
+      // Update state
+      setSession(oauthSession);
+      setUser(userData);
+
+      // Save to storage
+      saveSessionToStorage(oauthSession, userData);
+
+      // Update ref synchronously
+      initializationRef.current = {
+        complete: true,
+        user: userData,
+        session: oauthSession
+      };
+
+                // Start session daemon
+                sessionDaemon.addEventListener(handleDaemonEvent);
+                sessionDaemon.start();      logger.success('OAuth callback handled successfully');
+
+    } catch (error: any) {
+      // Only log as error if it's not an expected "not an OAuth callback" scenario
+      if (error.message?.includes('Not an OAuth callback')) {
+        logger.oauth('Not an OAuth callback, skipping OAuth processing');
+      } else {
+        logger.error('OAuth callback error', error);
+      }
+      
+      // Clear any invalid state
+      setSession(null);
+      setUser(null);
+      clearAllStorage();
+      
+      throw error; // Re-throw for the callback component to handle
+    } finally {
+      setIsOAuthProcessing(false);
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -551,6 +692,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       loading, 
       signOut, 
       refreshSession,
+      handleOAuthCallback,
       daemonStatus,
       getDaemonEvents
     }}>

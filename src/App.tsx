@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignupPage } from './components/auth/SignupPage';
+import { AuthCallback } from './components/auth/AuthCallback';
 import { StudentDashboard } from './components/dashboard/student/Dashboard';
 import { StudentCourses } from './components/dashboard/student/Courses';
 import { StudentMyLearning } from './components/dashboard/student/MyLearning';
@@ -38,6 +39,7 @@ import { Chatbot } from './components/common/Chatbot';
 import { Footer } from './components/layout/Footer';
 import { Toast } from './components/common/Toast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { validateEnvironmentUrls, debugUrlConfig } from './lib/url-config';
 import { Landing } from '../landingPage/landing';
 import { FeaturesPage } from '../landingPage/components/FeaturesPage';
 import { DocumentationPage } from '../landingPage/components/DocumentationPage';
@@ -95,7 +97,19 @@ const AppContent: React.FC = () => {
     children: React.ReactNode;
     requiredRole: 'student' | 'admin'
   }) => {
-    console.log('RequireRole: session?', !!session, 'user?', !!user, 'user.role?', user?.role, 'requiredRole:', requiredRole);
+    console.log('RequireRole: session?', !!session, 'user?', !!user, 'user.role?', user?.role, 'requiredRole:', requiredRole, 'loading?', loading);
+
+    // Don't redirect while loading - show loading spinner
+    if (loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Authenticating...</p>
+          </div>
+        </div>
+      );
+    }
 
     // If not signed in, redirect to public root
     if (!session || !user) {
@@ -131,7 +145,14 @@ const AppContent: React.FC = () => {
         <Route
           path="/"
           element={
-            session && user?.role ? (
+            loading ? (
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading your session...</p>
+                </div>
+              </div>
+            ) : session && user?.role ? (
               (() => {
                 console.log('Root route: Redirecting authenticated user to dashboard, role:', user.role);
                 return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
@@ -144,7 +165,14 @@ const AppContent: React.FC = () => {
         <Route
           path="/login"
           element={
-            session && user?.role ? (
+            loading ? (
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Checking authentication...</p>
+                </div>
+              </div>
+            ) : session && user?.role ? (
               (() => {
                 console.log('Login route: User already authenticated, redirecting to dashboard, role:', user.role);
                 return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
@@ -157,7 +185,14 @@ const AppContent: React.FC = () => {
         <Route
           path="/signup"
           element={
-            session && user?.role ? (
+            loading ? (
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Checking authentication...</p>
+                </div>
+              </div>
+            ) : session && user?.role ? (
               (() => {
                 console.log('Signup route: User already authenticated, redirecting to dashboard, role:', user.role);
                 return <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />;
@@ -167,6 +202,9 @@ const AppContent: React.FC = () => {
             )
           }
         />
+
+        {/* Auth Callback route */}
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* Landing page routes */}
         <Route path="/features" element={<FeaturesPage />} />
@@ -450,6 +488,25 @@ export function App() {
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     console.log(`Toast: ${type.toUpperCase()} - ${message}`);
   };
+
+  // Validate environment URLs on app startup
+  React.useEffect(() => {
+    const validation = validateEnvironmentUrls();
+    
+    if (!validation.isValid) {
+      console.error('❌ Environment URL validation failed:', validation.errors);
+      validation.errors.forEach(error => {
+        showToast(`Configuration Error: ${error}`, 'error');
+      });
+    } else {
+      console.log('✅ Environment URLs validated successfully');
+      
+      // Debug URL configuration in development
+      if (import.meta.env.DEV) {
+        debugUrlConfig();
+      }
+    }
+  }, []);
 
   return (
     <AuthProvider 
