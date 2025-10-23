@@ -2,17 +2,18 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
-import { ClockIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, ArrowLeftIcon, ArrowRightIcon, FlagIcon, HelpCircleIcon } from 'lucide-react';
+import { ClockIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, ArrowLeftIcon, ArrowRightIcon, FlagIcon, HelpCircleIcon, VideoIcon, PlayIcon, EyeIcon } from 'lucide-react';
 interface QuizQuestion {
   id: string;
-  question: string;
-  question_type: 'multiple_choice' | 'true_false' | 'matching' | 'short_answer' | 'essay';
+  question_text: string;
+  question_type: 'mcq' | 'true_false' | 'short_answer' | 'calculation' | 'word_problem' | 'reasoning';
   options: any;
   correct_answer: any;
   explanation: string;
   points: number;
-  difficulty: string;
+  difficulty_level: string;
   order_index: number;
+  rsl_video_url?: string;
 }
 interface Quiz {
   id: string;
@@ -44,7 +45,10 @@ export const QuizAttempt: React.FC = () => {
   const [percentage, setPercentage] = useState<number | null>(null);
   const [passed, setPassed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [showRSLVideo, setShowRSLVideo] = useState(false);
+  const [rslVideoWatched, setRslVideoWatched] = useState(false);
+  const [canStartQuiz, setCanStartQuiz] = useState(false);
+  const timerRef = useRef<number | null>(null);
   useEffect(() => {
     const fetchQuizData = async () => {
       try {
@@ -83,6 +87,29 @@ export const QuizAttempt: React.FC = () => {
         } = await supabase.from('enhanced_quizzes').select('*').eq('id', quizId).single();
         if (quizError) throw quizError;
         setQuiz(quizData);
+        
+        // Fetch lesson details for RSL video
+        let lessonRslVideo = null;
+        if (quizData.lesson_id) {
+          const { data: lessonData, error: lessonError } = await supabase
+            .from('enhanced_lessons')
+            .select('rsl_video_url')
+            .eq('id', quizData.lesson_id)
+            .single();
+          
+          if (!lessonError && lessonData?.rsl_video_url) {
+            lessonRslVideo = lessonData.rsl_video_url;
+          }
+        }
+        
+        // Check if RSL video should be shown (only for first-time attempts)
+        const shouldShowRSL = lessonRslVideo && !existingAttempts?.length;
+        if (shouldShowRSL) {
+          setShowRSLVideo(true);
+          setCanStartQuiz(false);
+        } else {
+          setCanStartQuiz(true);
+        }
         // Fetch quiz questions
         const {
           data: questionData,
@@ -151,6 +178,21 @@ export const QuizAttempt: React.FC = () => {
       setCurrentQuestionIndex(index);
     }
   };
+
+  const handleWatchRSLVideo = () => {
+    setShowRSLVideo(true);
+  };
+
+  const handleRSLVideoWatched = () => {
+    setRslVideoWatched(true);
+    setShowRSLVideo(false);
+    setCanStartQuiz(true);
+  };
+
+  const handleSkipRSLVideo = () => {
+    setShowRSLVideo(false);
+    setCanStartQuiz(true);
+  };
   const submitQuiz = async () => {
     if (!quiz || !userId || submitting) return;
     try {
@@ -162,15 +204,16 @@ export const QuizAttempt: React.FC = () => {
         totalPoints += question.points;
         const userAnswer = answers[question.id];
         if (!userAnswer) return;
-        if (question.question_type === 'multiple_choice' || question.question_type === 'true_false') {
+        if (question.question_type === 'mcq' || question.question_type === 'true_false') {
           if (userAnswer === question.correct_answer) {
             earnedPoints += question.points;
           }
-        } else if (question.question_type === 'matching') {
-          // For matching questions, calculate partial credit
-          const correctMatches = Object.entries(userAnswer).filter(([key, value]) => question.correct_answer[key] === value).length;
-          const totalMatches = Object.keys(question.correct_answer).length;
-          earnedPoints += correctMatches / totalMatches * question.points;
+        } else if (question.question_type === 'calculation' || question.question_type === 'word_problem' || question.question_type === 'reasoning') {
+          // For open-ended questions, check if answer is not empty (partial credit)
+          // In a real app, these would need manual grading
+          if (userAnswer && userAnswer.trim() !== '') {
+            earnedPoints += question.points * 0.5; // Give 50% credit for attempting
+          }
         }
         // Short answer and essay would need manual grading
       });
@@ -221,30 +264,44 @@ export const QuizAttempt: React.FC = () => {
     const question = questions[currentQuestionIndex];
     if (!question) return null;
     switch (question.question_type) {
-      case 'multiple_choice':
+      case 'mcq':
         return renderMultipleChoice(question);
       case 'true_false':
         return renderTrueFalse(question);
-      case 'matching':
-        return renderMatching(question);
       case 'short_answer':
         return renderShortAnswer(question);
-      case 'essay':
-        return renderEssay(question);
+      case 'calculation':
+        return renderCalculation(question);
+      case 'word_problem':
+        return renderWordProblem(question);
+      case 'reasoning':
+        return renderReasoning(question);
       default:
-        return <p>Unsupported question type</p>;
+        return <p>Unsupported question type: {question.question_type}</p>;
     }
   };
   const renderMultipleChoice = (question: QuizQuestion) => {
     const options = Array.isArray(question.options) ? question.options : [];
     const userAnswer = answers[question.id];
     const isCorrect = quizComplete && userAnswer === question.correct_answer;
-    const isIncorrect = quizComplete && userAnswer !== question.correct_answer;
+    const isIncorrected = quizComplete && userAnswer !== question.correct_answer;
     return <div>
         <div className="mb-4">
-          <h3 className="text-lg font-medium text-gray-800">
-            {question.question}
-          </h3>
+          <div className="flex justify-between items-start mb-2">
+            <h3 className="text-lg font-medium text-gray-800 flex-1">
+              {question.question_text}
+            </h3>
+            {question.rsl_video_url && (
+              <button
+                onClick={() => {/* TODO: Show question-specific RSL video */}}
+                className="ml-4 px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors flex items-center text-sm"
+                title="Watch RSL explanation for this question"
+              >
+                <EyeIcon size={14} className="mr-1" />
+                RSL
+              </button>
+            )}
+          </div>
           {quizComplete && <div className={`mt-2 p-2 rounded-lg ${isCorrect ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
               {isCorrect ? <div className="flex items-center">
                   <CheckCircleIcon size={16} className="mr-2" />
@@ -281,7 +338,7 @@ export const QuizAttempt: React.FC = () => {
     return <div>
         <div className="mb-4">
           <h3 className="text-lg font-medium text-gray-800">
-            {question.question}
+            {question.question_text}
           </h3>
           {quizComplete && <div className={`mt-2 p-2 rounded-lg ${isCorrect ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'}`}>
               {isCorrect ? <div className="flex items-center">
@@ -320,67 +377,13 @@ export const QuizAttempt: React.FC = () => {
         </div>
       </div>;
   };
-  const renderMatching = (question: QuizQuestion) => {
-    // This is a simplified version of matching - in a real app, you'd want drag and drop
-    const leftItems = question.options?.left || [];
-    const rightItems = question.options?.right || [];
-    const userAnswer = answers[question.id] || {};
-    return <div>
-        <div className="mb-4">
-          <h3 className="text-lg font-medium text-gray-800">
-            {question.question}
-          </h3>
-          {quizComplete && quiz?.show_answers && question.explanation && <div className="mt-2 text-sm bg-gray-50 p-2 rounded text-gray-700">
-              <strong>Explanation:</strong> {question.explanation}
-            </div>}
-        </div>
-        <div className="space-y-4">
-          {leftItems.map((item: any, index: number) => {
-          const isCorrect = quizComplete && userAnswer[item.id] === question.correct_answer[item.id];
-          return <div key={index} className="flex items-center">
-                <div className="w-1/2 pr-4">
-                  <div className="p-2 bg-gray-50 rounded-lg">{item.text}</div>
-                </div>
-                <div className="w-1/2">
-                  <select value={userAnswer[item.id] || ''} onChange={e => {
-                const newAnswer = {
-                  ...userAnswer,
-                  [item.id]: e.target.value
-                };
-                handleAnswerChange(question.id, newAnswer);
-              }} disabled={quizComplete} className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500">
-                    <option value="">-- Select Match --</option>
-                    {rightItems.map((rightItem: any, rightIndex: number) => <option key={rightIndex} value={rightItem.id}>
-                        {rightItem.text}
-                      </option>)}
-                  </select>
-                </div>
-                {quizComplete && <div className="ml-2">
-                    {isCorrect ? <CheckCircleIcon size={16} className="text-green-600" /> : <XCircleIcon size={16} className="text-red-600" />}
-                  </div>}
-              </div>;
-        })}
-        </div>
-        {quizComplete && quiz?.show_answers && <div className="mt-4 p-3 bg-blue-50 rounded-lg text-blue-800">
-            <h4 className="font-medium mb-2">Correct Matches:</h4>
-            <ul className="space-y-1">
-              {Object.entries(question.correct_answer).map(([leftId, rightId], index) => {
-            const leftItem = leftItems.find((item: any) => item.id === leftId);
-            const rightItem = rightItems.find((item: any) => item.id === rightId);
-            return <li key={index}>
-                      <strong>{leftItem?.text}</strong> → {rightItem?.text}
-                    </li>;
-          })}
-            </ul>
-          </div>}
-      </div>;
-  };
+
   const renderShortAnswer = (question: QuizQuestion) => {
     const userAnswer = answers[question.id] || '';
     return <div>
         <div className="mb-4">
           <h3 className="text-lg font-medium text-gray-800">
-            {question.question}
+            {question.question_text}
           </h3>
           {quizComplete && quiz?.show_answers && <div className="mt-2 p-2 rounded-lg bg-blue-50 text-blue-800">
               <div className="flex items-center">
@@ -400,28 +403,107 @@ export const QuizAttempt: React.FC = () => {
         </div>
       </div>;
   };
-  const renderEssay = (question: QuizQuestion) => {
+
+
+  const renderCalculation = (question: QuizQuestion) => {
     const userAnswer = answers[question.id] || '';
     return <div>
         <div className="mb-4">
           <h3 className="text-lg font-medium text-gray-800">
-            {question.question}
+            {question.question_text}
           </h3>
-          {quizComplete && <div className="mt-2 p-2 rounded-lg bg-blue-50 text-blue-800">
+          {quizComplete && quiz?.show_answers && <div className="mt-2 p-2 rounded-lg bg-blue-50 text-blue-800">
               <div className="flex items-center">
                 <AlertCircleIcon size={16} className="mr-2" />
-                <span>This question requires manual grading</span>
+                <span>Show your work for full credit</span>
               </div>
-              {question.explanation && quiz?.show_answers && <div className="mt-2 text-sm bg-gray-50 p-2 rounded text-gray-700">
-                  <strong>Grading guidelines:</strong> {question.explanation}
+              {quiz?.show_answers && <div className="mt-1 text-sm">
+                  <strong>Expected answer:</strong> {question.correct_answer}
+                </div>}
+              {question.explanation && <div className="mt-2 text-sm bg-gray-50 p-2 rounded text-gray-700">
+                  <strong>Solution:</strong> {question.explanation}
                 </div>}
             </div>}
         </div>
         <div>
-          <textarea value={userAnswer} onChange={e => handleAnswerChange(question.id, e.target.value)} disabled={quizComplete} rows={8} className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" placeholder="Enter your answer here..."></textarea>
+          <textarea 
+            value={userAnswer} 
+            onChange={e => handleAnswerChange(question.id, e.target.value)} 
+            disabled={quizComplete} 
+            rows={6} 
+            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+            placeholder="Show your calculation steps here..."
+          />
         </div>
       </div>;
   };
+
+  const renderWordProblem = (question: QuizQuestion) => {
+    const userAnswer = answers[question.id] || '';
+    return <div>
+        <div className="mb-4">
+          <h3 className="text-lg font-medium text-gray-800">
+            {question.question_text}
+          </h3>
+          {quizComplete && quiz?.show_answers && <div className="mt-2 p-2 rounded-lg bg-blue-50 text-blue-800">
+              <div className="flex items-center">
+                <AlertCircleIcon size={16} className="mr-2" />
+                <span>Explain your reasoning and show calculations</span>
+              </div>
+              {quiz?.show_answers && <div className="mt-1 text-sm">
+                  <strong>Expected answer:</strong> {question.correct_answer}
+                </div>}
+              {question.explanation && <div className="mt-2 text-sm bg-gray-50 p-2 rounded text-gray-700">
+                  <strong>Solution approach:</strong> {question.explanation}
+                </div>}
+            </div>}
+        </div>
+        <div>
+          <textarea 
+            value={userAnswer} 
+            onChange={e => handleAnswerChange(question.id, e.target.value)} 
+            disabled={quizComplete} 
+            rows={8} 
+            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+            placeholder="Explain your approach and show your work..."
+          />
+        </div>
+      </div>;
+  };
+
+  const renderReasoning = (question: QuizQuestion) => {
+    const userAnswer = answers[question.id] || '';
+    return <div>
+        <div className="mb-4">
+          <h3 className="text-lg font-medium text-gray-800">
+            {question.question_text}
+          </h3>
+          {quizComplete && quiz?.show_answers && <div className="mt-2 p-2 rounded-lg bg-blue-50 text-blue-800">
+              <div className="flex items-center">
+                <AlertCircleIcon size={16} className="mr-2" />
+                <span>Provide clear reasoning and justification</span>
+              </div>
+              {quiz?.show_answers && <div className="mt-1 text-sm">
+                  <strong>Expected reasoning:</strong> {question.correct_answer}
+                </div>}
+              {question.explanation && <div className="mt-2 text-sm bg-gray-50 p-2 rounded text-gray-700">
+                  <strong>Key concepts:</strong> {question.explanation}
+                </div>}
+            </div>}
+        </div>
+        <div>
+          <textarea 
+            value={userAnswer} 
+            onChange={e => handleAnswerChange(question.id, e.target.value)} 
+            disabled={quizComplete} 
+            rows={6} 
+            className="block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" 
+            placeholder="Explain your reasoning step by step..."
+          />
+        </div>
+      </div>;
+  };
+
   const renderQuizResults = () => {
     if (!quizComplete || score === null || percentage === null || passed === null) return null;
     return <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
@@ -487,6 +569,119 @@ export const QuizAttempt: React.FC = () => {
         </div>
       </DashboardLayout>;
   }
+
+  // Show RSL video preparation screen
+  if (!canStartQuiz && !quizComplete) {
+    return <DashboardLayout title={quiz.title} role="student">
+        <div className="max-w-4xl mx-auto p-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div className="h-16 w-16 rounded-lg flex items-center justify-center bg-purple-100 text-purple-600 mx-auto mb-4">
+              <VideoIcon size={32} />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+              Before You Begin: Watch the RSL Video
+            </h2>
+            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+              This quiz includes Rwandan Sign Language (RSL) support. We recommend watching the instructional video 
+              to better understand the concepts before taking the quiz.
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
+              <button
+                onClick={handleWatchRSLVideo}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+              >
+                <PlayIcon size={20} className="mr-2" />
+                Watch RSL Video
+              </button>
+              
+              <button
+                onClick={handleSkipRSLVideo}
+                className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Skip Video & Start Quiz
+              </button>
+            </div>
+
+            {rslVideoWatched && (
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                <div className="flex items-center text-green-800">
+                  <CheckCircleIcon size={20} className="mr-2" />
+                  <span>Great! You've watched the RSL video. You can now start the quiz.</span>
+                </div>
+              </div>
+            )}
+
+            <div className="text-sm text-gray-500">
+              <p><strong>Quiz Details:</strong></p>
+              <p>Questions: {questions.length} | Time Limit: {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No limit'}</p>
+              <p>Passing Score: {quiz.passing_score}%</p>
+            </div>
+          </div>
+        </div>
+
+        {/* RSL Video Modal */}
+        {showRSLVideo && (
+          <div className="fixed inset-0 z-50 overflow-y-auto">
+            <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+              <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+                <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+              </div>
+              <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+                <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-medium text-gray-900">
+                      RSL Instructional Video
+                    </h3>
+                    <button
+                      onClick={() => setShowRSLVideo(false)}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      <XCircleIcon size={24} />
+                    </button>
+                  </div>
+                  
+                  <div className="mb-4">
+                    <div className="bg-gray-100 rounded-lg p-8 text-center">
+                      <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
+                      <p className="text-gray-600 mb-4">RSL Video Player</p>
+                      <p className="text-sm text-gray-500">
+                        Video URL would be loaded here from the lesson data
+                      </p>
+                      {/* In a real implementation, you would add a proper video player here */}
+                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                        <p className="text-blue-800 text-sm">
+                          <strong>Note:</strong> This is a placeholder for the RSL video player. 
+                          In the actual implementation, the video from the lesson's rsl_video_url would be displayed here.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <button
+                      onClick={handleSkipRSLVideo}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                    >
+                      Skip Video
+                    </button>
+                    <button
+                      onClick={handleRSLVideoWatched}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                    >
+                      <CheckCircleIcon size={16} className="mr-2" />
+                      Mark as Watched & Continue
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </DashboardLayout>;
+  }
+
   if (quizComplete) {
     return <DashboardLayout title={quiz.title} role="student">
         {renderQuizResults()}
@@ -498,7 +693,7 @@ export const QuizAttempt: React.FC = () => {
             <div className="flex flex-wrap gap-2 mb-6">
               {questions.map((q, index) => {
               const isAnswered = !!answers[q.id];
-              const isCorrect = quizComplete && (q.question_type === 'multiple_choice' || q.question_type === 'true_false') ? answers[q.id] === q.correct_answer : false;
+              const isCorrect = quizComplete && (q.question_type === 'mcq' || q.question_type === 'true_false') ? answers[q.id] === q.correct_answer : false;
               return <button key={q.id} onClick={() => navigateToQuestion(index)} className={`h-8 w-8 rounded-full flex items-center justify-center text-sm ${currentQuestionIndex === index ? 'ring-2 ring-blue-500 bg-blue-100 text-blue-800' : isAnswered ? isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'}`}>
                     {index + 1}
                   </button>;

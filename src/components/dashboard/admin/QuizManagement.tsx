@@ -36,6 +36,8 @@ export const AdminQuizManagement: React.FC = () => {
   const [selectedQuiz, setSelectedQuiz] = useState<Quiz | null>(null);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [editActiveTab, setEditActiveTab] = useState<'details' | 'questions'>('details');
+  const [editQuestions, setEditQuestions] = useState<any[]>([]);
   const [editFormData, setEditFormData] = useState({
     title: '',
     description: '',
@@ -410,8 +412,31 @@ export const AdminQuizManagement: React.FC = () => {
       is_published: quiz.is_published
     });
   };
-  const handleEditClick = () => {
-    setIsEditing(true);
+  const handleEditClick = async () => {
+    if (!selectedQuiz) return;
+    
+    try {
+      // Fetch questions for this quiz
+      const { data: questionsData, error: questionsError } = await supabase
+        .from('enhanced_quiz_questions')
+        .select('*')
+        .eq('quiz_id', selectedQuiz.id)
+        .order('order_index', { ascending: true });
+      
+      if (questionsError) {
+        console.error('Error fetching questions:', questionsError);
+        // Continue anyway, just with empty questions
+        setEditQuestions([]);
+      } else {
+        setEditQuestions(questionsData || []);
+      }
+      
+      setEditActiveTab('details');
+      setIsEditing(true);
+    } catch (error) {
+      console.error('Error preparing edit mode:', error);
+      setIsEditing(true); // Still allow editing even if questions fail to load
+    }
   };
   const handleEditCancel = () => {
     setIsEditing(false);
@@ -962,31 +987,134 @@ export const AdminQuizManagement: React.FC = () => {
               </div>
               {/* Modal Content */}
               <div className="p-6">
-                {isEditing /* Edit Form */ ? <div className="space-y-4">
-                    <div>
-                      <label htmlFor="title" className="block text-sm font-medium text-gray-700">
-                        Title
-                      </label>
-                      <input type="text" name="title" id="title" value={editFormData.title} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                {isEditing /* Edit Form with Tabs */ ? <div>
+                    {/* Tab Navigation */}
+                    <div className="border-b border-gray-200 mb-6">
+                      <nav className="-mb-px flex space-x-8">
+                        <button
+                          onClick={() => setEditActiveTab('details')}
+                          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                            editActiveTab === 'details'
+                              ? 'border-purple-500 text-purple-600'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          Quiz Details
+                        </button>
+                        <button
+                          onClick={() => setEditActiveTab('questions')}
+                          className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                            editActiveTab === 'questions'
+                              ? 'border-purple-500 text-purple-600'
+                              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                          }`}
+                        >
+                          Manage Questions ({editQuestions.length})
+                        </button>
+                      </nav>
                     </div>
-                    <div>
-                      <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                        Description
-                      </label>
-                      <textarea name="description" id="description" rows={3} value={editFormData.description} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
-                    </div>
-                    <div>
-                      <label htmlFor="passing_score" className="block text-sm font-medium text-gray-700">
-                        Passing Score (%)
-                      </label>
-                      <input type="number" name="passing_score" id="passing_score" min="0" max="100" value={editFormData.passing_score} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
-                    </div>
-                    <div className="flex items-center">
-                      <input type="checkbox" name="is_published" id="is_published" checked={editFormData.is_published} onChange={handleCheckboxChange} className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" />
-                      <label htmlFor="is_published" className="ml-2 block text-sm text-gray-900">
-                        Published
-                      </label>
-                    </div>
+
+                    {/* Tab Content */}
+                    {editActiveTab === 'details' ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                            Title
+                          </label>
+                          <input type="text" name="title" id="title" value={editFormData.title} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                        </div>
+                        <div>
+                          <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                            Description
+                          </label>
+                          <textarea name="description" id="description" rows={3} value={editFormData.description} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                        </div>
+                        <div>
+                          <label htmlFor="passing_score" className="block text-sm font-medium text-gray-700">
+                            Passing Score (%)
+                          </label>
+                          <input type="number" name="passing_score" id="passing_score" min="0" max="100" value={editFormData.passing_score} onChange={handleInputChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" />
+                        </div>
+                        <div className="flex items-center">
+                          <input type="checkbox" name="is_published" id="is_published" checked={editFormData.is_published} onChange={handleCheckboxChange} className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" />
+                          <label htmlFor="is_published" className="ml-2 block text-sm text-gray-900">
+                            Published
+                          </label>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <h4 className="text-lg font-medium text-gray-900">Quiz Questions</h4>
+                          <button
+                            onClick={() => {/* TODO: Add new question */}}
+                            className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center"
+                          >
+                            <PlusIcon size={16} className="mr-1" />
+                            Add Question
+                          </button>
+                        </div>
+                        
+                        {editQuestions.length === 0 ? (
+                          <div className="text-center py-8 bg-gray-50 rounded-lg">
+                            <ClipboardListIcon size={48} className="mx-auto text-gray-400 mb-4" />
+                            <p className="text-gray-600 mb-4">No questions added yet</p>
+                            <button
+                              onClick={() => {/* TODO: Add first question */}}
+                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                            >
+                              Add Your First Question
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {editQuestions.map((question, index) => (
+                              <div key={question.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                <div className="flex justify-between items-start">
+                                  <div className="flex-1">
+                                    <div className="flex items-center mb-2">
+                                      <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-1 rounded">
+                                        Q{index + 1}
+                                      </span>
+                                      <span className="ml-2 bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded">
+                                        {question.question_type}
+                                      </span>
+                                      <span className="ml-2 text-xs text-gray-500">
+                                        {question.points} pts
+                                      </span>
+                                    </div>
+                                    <p className="text-sm text-gray-800 mb-2 line-clamp-2">
+                                      {question.question_text}
+                                    </p>
+                                    {question.question_type === 'mcq' && question.options && (
+                                      <div className="text-xs text-gray-600">
+                                        Options: {Array.isArray(question.options) ? question.options.length : 'Invalid format'}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex space-x-2">
+                                    <button
+                                      onClick={() => {/* TODO: Edit question */}}
+                                      className="text-blue-600 hover:text-blue-800"
+                                      title="Edit Question"
+                                    >
+                                      <EditIcon size={16} />
+                                    </button>
+                                    <button
+                                      onClick={() => {/* TODO: Delete question */}}
+                                      className="text-red-600 hover:text-red-800"
+                                      title="Delete Question"
+                                    >
+                                      <TrashIcon size={16} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div> /* View Details */ : <div className="space-y-4">
                     {/* Quiz Icon */}
                     <div className="flex justify-center">
