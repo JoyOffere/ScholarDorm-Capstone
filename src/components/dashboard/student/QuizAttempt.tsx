@@ -28,6 +28,10 @@ const convertToEmbedUrl = (url: string): string => {
   
   if (url.includes('youtu.be/')) {
     const videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    if (!videoId) {
+      console.log('❌ [RSL DEBUG] convertToEmbedUrl: Failed to extract video ID from youtu.be URL:', url);
+      return url;
+    }
     const converted = `https://www.youtube.com/embed/${videoId}`;
     console.log('🔄 [RSL DEBUG] convertToEmbedUrl: Converted youtu.be URL:', { input: url, videoId, output: converted });
     return converted;
@@ -245,7 +249,7 @@ export const QuizAttempt: React.FC = () => {
           error: questionError
         } = await supabase
           .from('enhanced_quiz_questions')
-          .select('*, rsl_video_url')
+          .select('*')
           .eq('quiz_id', quizId)
           .order('order_index', { ascending: true });
           
@@ -253,21 +257,30 @@ export const QuizAttempt: React.FC = () => {
         
         let processedQuestions = questionData || [];
         
-        // Log RSL video availability for questions
-        console.log('🎬 [RSL DEBUG] Questions loaded with RSL videos:', 
-          processedQuestions.filter(q => q.rsl_video_url).length, 'out of', processedQuestions.length);
+        // Log detailed question data with RSL information
+        console.log('🎬 [RSL DEBUG] All questions loaded:', 
+          processedQuestions.map(q => ({
+            id: q.id,
+            order_index: q.order_index,
+            question_text_preview: q.question_text?.substring(0, 50) + '...',
+            has_rsl_video_url: !!q.rsl_video_url,
+            rsl_video_url: q.rsl_video_url
+          }))
+        );
+        
+        const questionsWithRsl = processedQuestions.filter(q => q.rsl_video_url);
+        console.log('🎬 [RSL DEBUG] Questions with RSL videos:', 
+          questionsWithRsl.length, 'out of', processedQuestions.length);
           
-        if (processedQuestions.length > 0) {
-          console.log('🎬 [RSL DEBUG] Sample questions with RSL:', 
-            processedQuestions
-              .filter(q => q.rsl_video_url)
-              .slice(0, 3)
-              .map(q => ({ 
-                id: q.id, 
-                order: q.order_index, 
-                rsl_video: q.rsl_video_url?.substring(0, 50) + '...' 
-              }))
+        if (questionsWithRsl.length > 0) {
+          console.log('🎬 [RSL DEBUG] RSL video URLs found:', 
+            questionsWithRsl.map(q => ({ 
+              order: q.order_index,
+              rsl_video: q.rsl_video_url 
+            }))
           );
+        } else {
+          console.log('⚠️ [RSL DEBUG] No questions have RSL videos - this might indicate the migration scripts have not been run');
         }
         
         // Randomize questions if needed (preserve RSL video URLs)
@@ -279,13 +292,13 @@ export const QuizAttempt: React.FC = () => {
         setQuestions(processedQuestions);
         
         // Final RSL summary
-        const questionsWithRsl = processedQuestions.filter(q => q.rsl_video_url);
+        const finalQuestionsWithRsl = processedQuestions.filter(q => q.rsl_video_url);
         console.log('🎬 [RSL DEBUG] Final RSL Summary:', {
           totalQuestions: processedQuestions.length,
-          questionsWithRsl: questionsWithRsl.length,
+          questionsWithRsl: finalQuestionsWithRsl.length,
           quizRslVideo: !!rslVideoUrl,
           rslVideoSource,
-          fullRslCoverage: questionsWithRsl.length === processedQuestions.length
+          fullRslCoverage: finalQuestionsWithRsl.length === processedQuestions.length
         });
 
         // Set timer if applicable
@@ -398,15 +411,25 @@ export const QuizAttempt: React.FC = () => {
 
   // Check if question has RSL video and show modal before rendering
   useEffect(() => {
-    if (questions && questions.length > 0 && currentQuestionIndex >= 0) {
+    if (questions && questions.length > 0 && currentQuestionIndex >= 0 && canStartQuiz) {
       const question = questions[currentQuestionIndex];
-      if (question.rsl_video_url && !questionRSLWatched[question.id]) {
+      console.log('🎬 [RSL DEBUG] Question navigation useEffect:', {
+        questionIndex: currentQuestionIndex,
+        questionId: question?.id,
+        hasRslVideo: !!question?.rsl_video_url,
+        alreadyWatched: question?.id ? questionRSLWatched[question.id] : false,
+        rslVideoUrl: question?.rsl_video_url,
+        shouldShowRsl: question?.rsl_video_url && !questionRSLWatched[question?.id]
+      });
+      
+      if (question?.rsl_video_url && !questionRSLWatched[question.id] && !showQuestionRSL) {
+        console.log('✅ [RSL DEBUG] Auto-showing RSL video for question:', question.id);
         setCurrentQuestionRSL(question);
         setShowQuestionRSL(true);
         setPendingQuestionIndex(currentQuestionIndex);
       }
     }
-  }, [currentQuestionIndex, questions, questionRSLWatched]);
+  }, [currentQuestionIndex, questions, questionRSLWatched, canStartQuiz, showQuestionRSL]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -454,7 +477,25 @@ export const QuizAttempt: React.FC = () => {
   };
 
   const handleWatchQuestionRSL = () => {
-    setShowQuestionRSL(true);
+    const currentQuestion = questions[currentQuestionIndex];
+    console.log('🎬 [RSL DEBUG] handleWatchQuestionRSL triggered:', {
+      currentQuestionIndex,
+      currentQuestion: currentQuestion ? {
+        id: currentQuestion.id,
+        order_index: currentQuestion.order_index,
+        rsl_video_url: currentQuestion.rsl_video_url,
+        hasRslVideo: !!currentQuestion.rsl_video_url
+      } : null,
+      questionsLength: questions.length
+    });
+    
+    if (currentQuestion && currentQuestion.rsl_video_url) {
+      console.log('✅ [RSL DEBUG] Setting up question RSL modal:', currentQuestion.rsl_video_url);
+      setCurrentQuestionRSL(currentQuestion);
+      setShowQuestionRSL(true);
+    } else {
+      console.log('❌ [RSL DEBUG] No RSL video found for current question');
+    }
   };
 
   const handleQuestionRSLWatched = () => {
@@ -486,42 +527,6 @@ export const QuizAttempt: React.FC = () => {
     if (questions.length === 0) return null;
     const question = questions[currentQuestionIndex];
     if (!question) return null;
-
-    // Check if question has RSL video that hasn't been watched
-    if (question.rsl_video_url && !questionRSLWatched[question.id]) {
-      return (
-        <div className="bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 rounded-lg p-6 text-center">
-          <div className="h-16 w-16 rounded-full bg-purple-100 flex items-center justify-center mx-auto mb-4">
-            <VideoIcon size={32} className="text-purple-600" />
-          </div>
-          <h3 className="text-lg font-medium text-purple-900 mb-2">
-            Question RSL Video Available
-          </h3>
-          <p className="text-purple-700 mb-4">
-            This question has a dedicated RSL instructional video to help you understand the concepts better.
-          </p>
-          <div className="bg-white/60 rounded-lg p-3 mb-4 text-sm text-purple-800">
-            <p><strong>Question {currentQuestionIndex + 1} of {questions.length}</strong></p>
-            <p className="text-xs mt-1">Individual RSL explanation available</p>
-          </div>
-          <div className="flex justify-center space-x-4">
-            <button
-              onClick={handleSkipQuestionRSL}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-            >
-              Skip Video
-            </button>
-            <button
-              onClick={handleWatchQuestionRSL}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center"
-            >
-              <PlayIcon size={16} className="mr-2" />
-              Watch RSL Video
-            </button>
-          </div>
-        </div>
-      );
-    }
 
     switch (question.question_type) {
       case 'mcq':
@@ -1212,6 +1217,16 @@ export const QuizAttempt: React.FC = () => {
                     </p>
                     {currentQuestionRSL?.rsl_video_url ? (
                       <div className="relative w-full bg-gray-100 rounded-xl overflow-hidden shadow-lg" style={{ aspectRatio: '16 / 9' }}>
+                        {(() => {
+                          const convertedUrl = convertToEmbedUrl(currentQuestionRSL.rsl_video_url);
+                          console.log('🎬 [RSL DEBUG] Question RSL Modal iframe:', {
+                            originalUrl: currentQuestionRSL.rsl_video_url,
+                            convertedUrl,
+                            questionIndex: currentQuestionIndex + 1,
+                            questionId: currentQuestionRSL.id
+                          });
+                          return null;
+                        })()}
                         <iframe
                           className="w-full h-full"
                           src={convertToEmbedUrl(currentQuestionRSL.rsl_video_url)}
@@ -1219,6 +1234,8 @@ export const QuizAttempt: React.FC = () => {
                           frameBorder="0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           allowFullScreen
+                          onLoad={() => console.log('✅ [RSL DEBUG] Question RSL video iframe loaded successfully')}
+                          onError={(e) => console.error('❌ [RSL DEBUG] Question RSL video iframe failed to load:', e)}
                         ></iframe>
                       </div>
                     ) : (
