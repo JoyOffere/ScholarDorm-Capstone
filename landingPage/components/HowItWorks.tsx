@@ -1,4 +1,5 @@
 import React from 'react'
+import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { UserIcon, BookOpenIcon, TrophyIcon, LineChartIcon } from 'lucide-react'
 const steps = [
@@ -134,12 +135,12 @@ export const HowItWorks = () => {
           }}
           className="text-center mt-12"
         >
-          <a
-            href="/signup"
+          <Link
+            to="/signup"
             className="inline-block px-6 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-lg shadow-primary-100"
           >
             Start Your Journey Today
-          </a>
+          </Link>
         </motion.div>
       </div>
     </section>

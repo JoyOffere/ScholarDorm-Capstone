@@ -1,8 +1,42 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
 import { ClockIcon, CheckCircleIcon, XCircleIcon, AlertCircleIcon, ArrowLeftIcon, ArrowRightIcon, FlagIcon, HelpCircleIcon, VideoIcon, PlayIcon, EyeIcon } from 'lucide-react';
+
+// Helper function to convert YouTube URLs to embed format
+const convertToEmbedUrl = (url: string): string => {
+  console.log('🔗 [RSL DEBUG] convertToEmbedUrl input:', url);
+  
+  if (!url) {
+    console.log('❌ [RSL DEBUG] convertToEmbedUrl: Empty URL provided');
+    return '';
+  }
+  
+  // If already an embed URL, return as is
+  if (url.includes('embed/')) {
+    console.log('✅ [RSL DEBUG] convertToEmbedUrl: Already embed URL:', url);
+    return url;
+  }
+  
+  // Handle various YouTube URL formats
+  if (url.includes('youtube.com/watch?v=')) {
+    const converted = url.replace('watch?v=', 'embed/');
+    console.log('🔄 [RSL DEBUG] convertToEmbedUrl: Converted watch URL:', { input: url, output: converted });
+    return converted;
+  }
+  
+  if (url.includes('youtu.be/')) {
+    const videoId = url.split('youtu.be/')[1]?.split('?')[0];
+    const converted = `https://www.youtube.com/embed/${videoId}`;
+    console.log('🔄 [RSL DEBUG] convertToEmbedUrl: Converted youtu.be URL:', { input: url, videoId, output: converted });
+    return converted;
+  }
+  
+  // For other video URLs, return as is and let iframe handle it
+  console.log('⚠️ [RSL DEBUG] convertToEmbedUrl: Non-YouTube URL, returning as-is:', url);
+  return url;
+};
 interface QuizQuestion {
   id: string;
   question_text: string;
@@ -25,6 +59,7 @@ interface Quiz {
   max_attempts: number | null;
   randomize_questions: boolean;
   show_answers: boolean;
+  lesson_id?: string;
 }
 export const QuizAttempt: React.FC = () => {
   const {
@@ -50,12 +85,45 @@ export const QuizAttempt: React.FC = () => {
   const [showRSLVideo, setShowRSLVideo] = useState(false);
   const [rslVideoWatched, setRslVideoWatched] = useState(false);
   const [canStartQuiz, setCanStartQuiz] = useState(false);
+  const [lessonRslVideoUrl, setLessonRslVideoUrl] = useState<string | null>(null);
   const [showQuestionRSL, setShowQuestionRSL] = useState(false);
   const [currentQuestionRSL, setCurrentQuestionRSL] = useState<QuizQuestion | null>(null);
   const [questionRSLWatched, setQuestionRSLWatched] = useState<Record<string, boolean>>({});
   const [pendingQuestionIndex, setPendingQuestionIndex] = useState<number | null>(null);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const timerRef = useRef<number | null>(null);
+
+  // Debug function to check RSL state (available in browser console)
+  (window as any).debugRSL = () => {
+    console.group('🎬 [RSL DEBUG] Complete State Overview');
+    console.log('📊 Quiz Information:', {
+      quizId: quizId,
+      quizTitle: quiz?.title,
+      lessonId: quiz?.lesson_id,
+      hasLessonId: !!quiz?.lesson_id
+    });
+    console.log('🎥 RSL Video State:', {
+      lessonRslVideoUrl: lessonRslVideoUrl,
+      hasVideoUrl: !!lessonRslVideoUrl,
+      convertedUrl: lessonRslVideoUrl ? convertToEmbedUrl(lessonRslVideoUrl) : null,
+      rslVideoSource: lessonRslVideoUrl ? (quiz?.lesson_id ? 'lesson-level' : 'fallback/quiz-level') : 'none',
+      isStandaloneQuiz: !quiz?.lesson_id
+    });
+    console.log('🎯 Quiz Flow State:', {
+      loading: loading,
+      quizComplete: quizComplete,
+      canStartQuiz: canStartQuiz,
+      showRSLVideo: showRSLVideo,
+      rslVideoWatched: rslVideoWatched
+    });
+    console.log('📱 UI Conditions:', {
+      shouldShowPreparationScreen: !canStartQuiz && !quizComplete,
+      shouldShowModalVideo: showRSLVideo,
+      currentScreen: loading ? 'loading' : quizComplete ? 'results' : !canStartQuiz ? 'rsl-preparation' : 'quiz'
+    });
+    console.groupEnd();
+  };
+
   useEffect(() => {
     const fetchQuizData = async () => {
       try {
@@ -96,27 +164,157 @@ export const QuizAttempt: React.FC = () => {
         if (quizError) throw quizError;
         setQuiz(quizData);
         
-        // Fetch lesson details for RSL video
-        let lessonRslVideo = null;
+        // Fetch RSL video - check both lesson-level and quiz-level RSL content
+        let rslVideoUrl = null;
+        let rslVideoSource = 'none';
+        
+        console.log('🎬 [RSL DEBUG] Checking for RSL video content...', {
+          quizId,
+          lessonId: quizData.lesson_id,
+          quizTitle: quizData.title,
+          hasLessonId: !!quizData.lesson_id
+        });
+
+        // First, try to get lesson-level RSL video
         if (quizData.lesson_id) {
           const { data: lessonData, error: lessonError } = await supabase
             .from('enhanced_lessons')
             .select('rsl_video_url')
             .eq('id', quizData.lesson_id)
-            .single();
+            .maybeSingle();
           
+          console.log('🎬 [RSL DEBUG] Lesson data fetch result:', {
+            lessonError: lessonError?.message,
+            lessonData,
+            hasRslVideoUrl: !!lessonData?.rsl_video_url
+          });
+
           if (!lessonError && lessonData?.rsl_video_url) {
-            lessonRslVideo = lessonData.rsl_video_url;
+            rslVideoUrl = lessonData.rsl_video_url;
+            rslVideoSource = 'lesson';
+            console.log('✅ [RSL DEBUG] Lesson RSL video found:', rslVideoUrl);
+          }
+        }
+
+        // If no lesson RSL video, check for quiz-specific or general RSL content
+        if (!rslVideoUrl) {
+          console.log('🔍 [RSL DEBUG] No lesson RSL video, checking for quiz-specific RSL content...');
+          
+          // First try to find quiz-specific RSL content (quiz as 'lesson' type)
+          const { data: quizRslContent, error: quizRslError } = await supabase
+            .from('rsl_content')
+            .select('rsl_video_url, description')
+            .eq('content_type', 'lesson')
+            .eq('content_id', quizId)
+            .limit(1)
+            .maybeSingle();
+
+          console.log('🎬 [RSL DEBUG] Quiz-specific RSL query result:', {
+            quizRslError: quizRslError?.message,
+            quizRslContent,
+            hasVideoUrl: !!quizRslContent?.rsl_video_url
+          });
+
+          if (!quizRslError && quizRslContent?.rsl_video_url) {
+            rslVideoUrl = quizRslContent.rsl_video_url;
+            rslVideoSource = 'quiz-specific';
+            console.log('✅ [RSL DEBUG] Quiz-specific RSL content found:', rslVideoUrl);
+          } else {
+            // Try to get general RSL content as fallback
+            console.log('🔍 [RSL DEBUG] No quiz-specific RSL, checking for general RSL content...');
+            
+            const { data: generalRsl, error: generalError } = await supabase
+              .from('rsl_content')
+              .select('rsl_video_url, description')
+              .eq('content_type', 'general')
+              .limit(1)
+              .maybeSingle();
+
+            console.log('🎬 [RSL DEBUG] General RSL query result:', {
+              generalError: generalError?.message,
+              generalRsl,
+              hasVideoUrl: !!generalRsl?.rsl_video_url
+            });
+
+            if (!generalError && generalRsl?.rsl_video_url) {
+              rslVideoUrl = generalRsl.rsl_video_url;
+              rslVideoSource = 'general';
+              console.log('✅ [RSL DEBUG] General RSL content found as fallback:', rslVideoUrl);
+            } else {
+              console.log('❌ [RSL DEBUG] No RSL content found anywhere:', {
+                quizRslError: quizRslError?.message,
+                generalError: generalError?.message
+              });
+            }
+          }
+        }
+
+        // Set the RSL video URL if found
+        if (rslVideoUrl) {
+          setLessonRslVideoUrl(rslVideoUrl);
+        } else {
+          // DEBUG: Add sample RSL content for testing if none exists
+          console.log('🎬 [RSL DEBUG] No RSL content found, attempting to add sample data...');
+          try {
+            // Add general RSL content if none exists
+            const { data: existingGeneral } = await supabase
+              .from('rsl_content')
+              .select('id')
+              .eq('content_type', 'general')
+              .limit(1)
+              .maybeSingle();
+
+            if (!existingGeneral) {
+              console.log('🎬 [RSL DEBUG] Adding sample general RSL content...');
+              const { data: insertResult, error: insertError } = await supabase
+                .from('rsl_content')
+                .insert({
+                  content_type: 'general',
+                  content_id: null,
+                  rsl_video_url: 'https://youtu.be/NdIz-r-hs34?si=mOHmXPNaEqzvufw6',
+                  description: 'RSL video for mathematics concepts',
+                  sign_complexity: 'basic'
+                })
+                .select()
+                .single();
+
+              if (!insertError && insertResult) {
+                setLessonRslVideoUrl(insertResult.rsl_video_url);
+                rslVideoUrl = insertResult.rsl_video_url;
+                rslVideoSource = 'general-created';
+                console.log('✅ [RSL DEBUG] Sample general RSL content created and set:', rslVideoUrl);
+              } else {
+                console.log('❌ [RSL DEBUG] Failed to create sample RSL content:', insertError?.message);
+              }
+            }
+          } catch (debugError) {
+            console.log('⚠️ [RSL DEBUG] Error in debug RSL creation:', debugError);
           }
         }
         
-        // Check if RSL video should be shown (for first-time attempts or new attempts if no previous attempts)
-        const shouldShowRSL = lessonRslVideo && (!existingAttempts?.length || isNewAttempt);
-        if (shouldShowRSL && !quizComplete) {
-          setShowRSLVideo(true);
+        // Show RSL video preparation screen logic (fixed)
+        const hasRslVideo = !!rslVideoUrl;
+        const isFirstTimeOrRetake = isNewAttempt || !existingAttempts?.length;
+        const shouldShowRSL = hasRslVideo && !quizComplete && isFirstTimeOrRetake;
+        
+        console.log('🎬 [RSL DEBUG] RSL preparation screen logic:', {
+          hasRslVideo,
+          rslVideoSource,
+          rslVideoUrl,
+          quizComplete,
+          isNewAttempt,
+          existingAttemptsCount: existingAttempts?.length || 0,
+          isFirstTimeOrRetake,
+          shouldShowRSL,
+          willShowPreparationScreen: shouldShowRSL
+        });
+
+        if (shouldShowRSL) {
           setCanStartQuiz(false);
+          console.log('🎬 [RSL DEBUG] RSL preparation screen will be shown');
         } else {
           setCanStartQuiz(true);
+          console.log('🎬 [RSL DEBUG] Skipping RSL preparation screen, going directly to quiz');
         }
         // Fetch quiz questions
         const {
@@ -158,100 +356,8 @@ export const QuizAttempt: React.FC = () => {
       }
     };
   }, [quizId]);
-  useEffect(() => {
-    if (timeRemaining === null) return;
-    if (timeRemaining > 0 && !quizComplete) {
-      timerRef.current = setInterval(() => {
-        setTimeRemaining(prev => {
-          if (prev === null || prev <= 1) {
-            if (timerRef.current) clearInterval(timerRef.current);
-            submitQuiz();
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-    };
-  }, [timeRemaining, quizComplete]);
 
-  // Check if question has RSL video and show modal before rendering
-  useEffect(() => {
-    if (questions && questions.length > 0 && currentQuestionIndex >= 0) {
-      const question = questions[currentQuestionIndex];
-      if (question.rsl_video_url && !questionRSLWatched[question.id]) {
-        setCurrentQuestionRSL(question);
-        setShowQuestionRSL(true);
-        setPendingQuestionIndex(currentQuestionIndex);
-      }
-    }
-  }, [currentQuestionIndex, questions, questionRSLWatched]);
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-  const handleAnswerChange = (questionId: string, answer: any) => {
-    setAnswers(prev => ({
-      ...prev,
-      [questionId]: answer
-    }));
-  };
-  const navigateToQuestion = (index: number) => {
-    if (index >= 0 && index < questions.length) {
-      setCurrentQuestionIndex(index);
-    }
-  };
-
-  const handleWatchRSLVideo = () => {
-    setShowRSLVideo(true);
-  };
-
-  const handleRSLVideoWatched = () => {
-    setRslVideoWatched(true);
-    setShowRSLVideo(false);
-    setCanStartQuiz(true);
-  };
-
-  const handleSkipRSLVideo = () => {
-    setShowRSLVideo(false);
-    setCanStartQuiz(true);
-  };
-
-  const handleWatchQuestionRSL = () => {
-    setShowQuestionRSL(true);
-  };
-
-  const handleQuestionRSLWatched = () => {
-    if (currentQuestionRSL) {
-      setQuestionRSLWatched(prev => ({
-        ...prev,
-        [currentQuestionRSL.id]: true
-      }));
-    }
-    setShowQuestionRSL(false);
-    setCurrentQuestionRSL(null);
-    setPendingQuestionIndex(null);
-  };
-
-  const handleSkipQuestionRSL = () => {
-    if (currentQuestionRSL) {
-      setQuestionRSLWatched(prev => ({
-        ...prev,
-        [currentQuestionRSL.id]: true
-      }));
-    }
-    setShowQuestionRSL(false);
-    setCurrentQuestionRSL(null);
-    setPendingQuestionIndex(null);
-  };
-
-  const submitQuiz = async () => {
+  const submitQuiz = useCallback(async () => {
     if (!quiz || !userId || submitting) return;
     try {
       setSubmitting(true);
@@ -316,7 +422,109 @@ export const QuizAttempt: React.FC = () => {
     } finally {
       setSubmitting(false);
     }
+  }, [quiz, userId, submitting, questions, answers, timeRemaining, quizId]);
+
+  useEffect(() => {
+    if (timeRemaining === null) return;
+    if (timeRemaining > 0 && !quizComplete) {
+      timerRef.current = setInterval(() => {
+        setTimeRemaining(prev => {
+          if (prev === null || prev <= 1) {
+            if (timerRef.current) clearInterval(timerRef.current);
+            submitQuiz();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [timeRemaining, quizComplete, submitQuiz]);
+
+  // Check if question has RSL video and show modal before rendering
+  useEffect(() => {
+    if (questions && questions.length > 0 && currentQuestionIndex >= 0) {
+      const question = questions[currentQuestionIndex];
+      if (question.rsl_video_url && !questionRSLWatched[question.id]) {
+        setCurrentQuestionRSL(question);
+        setShowQuestionRSL(true);
+        setPendingQuestionIndex(currentQuestionIndex);
+      }
+    }
+  }, [currentQuestionIndex, questions, questionRSLWatched]);
+
+  const formatTime = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
+  const handleAnswerChange = (questionId: string, answer: any) => {
+    setAnswers(prev => ({
+      ...prev,
+      [questionId]: answer
+    }));
+  };
+  const navigateToQuestion = (index: number) => {
+    if (index >= 0 && index < questions.length) {
+      setCurrentQuestionIndex(index);
+    }
+  };
+
+  const handleWatchRSLVideo = () => {
+    console.log('🎬 [RSL DEBUG] handleWatchRSLVideo triggered', {
+      lessonRslVideoUrl,
+      hasVideoUrl: !!lessonRslVideoUrl,
+      currentShowRSLVideo: showRSLVideo
+    });
+    setShowRSLVideo(true);
+  };
+
+  const handleRSLVideoWatched = () => {
+    console.log('✅ [RSL DEBUG] handleRSLVideoWatched triggered - User completed watching RSL video');
+    setRslVideoWatched(true);
+    setShowRSLVideo(false);
+    setCanStartQuiz(true);
+  };
+
+  const handleSkipRSLVideo = () => {
+    console.log('⏭️ [RSL DEBUG] handleSkipRSLVideo triggered - User skipped RSL video');
+    setShowRSLVideo(false);
+    setCanStartQuiz(true);
+  };
+
+  const handleWatchQuestionRSL = () => {
+    setShowQuestionRSL(true);
+  };
+
+  const handleQuestionRSLWatched = () => {
+    if (currentQuestionRSL) {
+      setQuestionRSLWatched(prev => ({
+        ...prev,
+        [currentQuestionRSL.id]: true
+      }));
+    }
+    setShowQuestionRSL(false);
+    setCurrentQuestionRSL(null);
+    setPendingQuestionIndex(null);
+  };
+
+  const handleSkipQuestionRSL = () => {
+    if (currentQuestionRSL) {
+      setQuestionRSLWatched(prev => ({
+        ...prev,
+        [currentQuestionRSL.id]: true
+      }));
+    }
+    setShowQuestionRSL(false);
+    setCurrentQuestionRSL(null);
+    setPendingQuestionIndex(null);
+  };
+
+
   const renderQuestion = () => {
     if (questions.length === 0) return null;
     const question = questions[currentQuestionIndex];
@@ -386,7 +594,6 @@ export const QuizAttempt: React.FC = () => {
     
     const userAnswer = answers[question.id];
     const isCorrect = quizComplete && userAnswer === question.correct_answer;
-    const isIncorrected = quizComplete && userAnswer !== question.correct_answer;
     return <div>
         <div className="mb-4">
           <div className="flex justify-between items-start mb-2">
@@ -395,7 +602,10 @@ export const QuizAttempt: React.FC = () => {
             </h3>
             {question.rsl_video_url && (
               <button
-                onClick={() => {/* TODO: Show question-specific RSL video */}}
+                onClick={() => {
+                  setCurrentQuestionRSL(question);
+                  setShowQuestionRSL(true);
+                }}
                 className="ml-4 px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors flex items-center text-sm"
                 title="Watch RSL explanation for this question"
               >
@@ -724,27 +934,85 @@ export const QuizAttempt: React.FC = () => {
 
   // Show RSL video preparation screen
   if (!canStartQuiz && !quizComplete) {
+    console.log('🎬 [RSL DEBUG] Rendering RSL preparation screen:', {
+      canStartQuiz,
+      quizComplete,
+      lessonRslVideoUrl,
+      hasVideoUrl: !!lessonRslVideoUrl,
+      quiz: quiz?.title,
+      showingPreparationScreen: true
+    });
+
     return <DashboardLayout title={quiz.title} role="student">
         <div className="max-w-4xl mx-auto p-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-            <div className="h-16 w-16 rounded-lg flex items-center justify-center bg-purple-100 text-purple-600 mx-auto mb-4">
-              <VideoIcon size={32} />
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+            <div className="text-center mb-6">
+              <div className="h-16 w-16 rounded-lg flex items-center justify-center bg-purple-100 text-purple-600 mx-auto mb-4">
+                <VideoIcon size={32} />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                RSL Instructional Video
+              </h2>
+              <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+                This quiz includes Rwandan Sign Language (RSL) support. Watch the instructional video below 
+                to better understand the concepts before taking the quiz.
+              </p>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              Before You Begin: Watch the RSL Video
-            </h2>
-            <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-              This quiz includes Rwandan Sign Language (RSL) support. We recommend watching the instructional video 
-              to better understand the concepts before taking the quiz.
-            </p>
+
+            {/* RSL Video Player */}
+            {lessonRslVideoUrl ? (
+              <div className="mb-6">
+                {(() => {
+                  const convertedUrl = convertToEmbedUrl(lessonRslVideoUrl);
+                  console.log('🎬 [RSL DEBUG] Rendering RSL video iframe:', {
+                    originalUrl: lessonRslVideoUrl,
+                    convertedUrl: convertedUrl,
+                    urlIsValid: !!convertedUrl,
+                    renderingVideoPlayer: true
+                  });
+                  return null;
+                })()}
+                <div className="relative w-full bg-gray-100 rounded-xl overflow-hidden shadow-lg mb-4" style={{ aspectRatio: '16 / 9' }}>
+                  <iframe
+                    className="w-full h-full"
+                    src={convertToEmbedUrl(lessonRslVideoUrl)}
+                    title="RSL Instructional Video"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    onLoad={() => console.log('✅ [RSL DEBUG] RSL video iframe loaded successfully')}
+                    onError={() => console.error('❌ [RSL DEBUG] RSL video iframe failed to load')}
+                  ></iframe>
+                </div>
+                <p className="text-sm text-gray-600 text-center mb-4">
+                  Watch the video above to learn the RSL signs and concepts for this quiz.
+                </p>
+              </div>
+            ) : (
+              <div className="bg-gray-100 rounded-lg p-8 text-center mb-6">
+                {(() => {
+                  console.log('⚠️ [RSL DEBUG] Showing fallback - No RSL video available:', {
+                    lessonRslVideoUrl,
+                    hasVideoUrl: !!lessonRslVideoUrl,
+                    renderingFallback: true
+                  });
+                  return null;
+                })()}
+                <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
+                <p className="text-gray-600 mb-4">No RSL video available for this quiz</p>
+                <p className="text-sm text-gray-500">
+                  The lesson associated with this quiz does not have an RSL video.
+                </p>
+              </div>
+            )}
             
             <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
               <button
-                onClick={handleWatchRSLVideo}
-                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+                onClick={handleRSLVideoWatched}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
               >
-                <PlayIcon size={20} className="mr-2" />
-                Watch RSL Video
+                <CheckCircleIcon size={20} className="mr-2" />
+                Continue to Quiz
               </button>
               
               <button
@@ -755,16 +1023,7 @@ export const QuizAttempt: React.FC = () => {
               </button>
             </div>
 
-            {rslVideoWatched && (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                <div className="flex items-center text-green-800">
-                  <CheckCircleIcon size={20} className="mr-2" />
-                  <span>Great! You've watched the RSL video. You can now start the quiz.</span>
-                </div>
-              </div>
-            )}
-
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-gray-500 text-center border-t pt-4">
               <p><strong>Quiz Details:</strong></p>
               <p>Questions: {questions.length} | Time Limit: {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No limit'}</p>
               <p>Passing Score: {quiz.passing_score}%</p>
@@ -775,6 +1034,15 @@ export const QuizAttempt: React.FC = () => {
         {/* RSL Video Modal */}
         {showRSLVideo && (
           <div className="fixed inset-0 z-50 overflow-y-auto">
+            {(() => {
+              console.log('🎬 [RSL DEBUG] Rendering RSL Video Modal:', {
+                showRSLVideo,
+                lessonRslVideoUrl,
+                hasVideoUrl: !!lessonRslVideoUrl,
+                modalVisible: true
+              });
+              return null;
+            })()}
             <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
               <div className="fixed inset-0 transition-opacity" aria-hidden="true">
                 <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -787,7 +1055,10 @@ export const QuizAttempt: React.FC = () => {
                       RSL Instructional Video
                     </h3>
                     <button
-                      onClick={() => setShowRSLVideo(false)}
+                      onClick={() => {
+                        console.log('❌ [RSL DEBUG] Closing RSL modal via X button');
+                        setShowRSLVideo(false);
+                      }}
                       className="text-gray-400 hover:text-gray-600"
                     >
                       <XCircleIcon size={24} />
@@ -795,20 +1066,43 @@ export const QuizAttempt: React.FC = () => {
                   </div>
                   
                   <div className="mb-4">
-                    <div className="bg-gray-100 rounded-lg p-8 text-center">
-                      <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-600 mb-4">RSL Video Player</p>
-                      <p className="text-sm text-gray-500">
-                        Video URL would be loaded here from the lesson data
-                      </p>
-                      {/* In a real implementation, you would add a proper video player here */}
-                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                        <p className="text-blue-800 text-sm">
-                          <strong>Note:</strong> This is a placeholder for the RSL video player. 
-                          In the actual implementation, the video from the lesson's rsl_video_url would be displayed here.
+                    <p className="text-sm text-gray-600 mb-4">
+                      Watch this RSL instructional video to better understand the concepts before taking the quiz.
+                    </p>
+                    {lessonRslVideoUrl ? (
+                      <div className="relative w-full bg-gray-100 rounded-xl overflow-hidden shadow-lg" style={{ aspectRatio: '16 / 9' }}>
+                        {(() => {
+                          const convertedUrl = convertToEmbedUrl(lessonRslVideoUrl);
+                          console.log('🎬 [RSL DEBUG] Rendering modal iframe:', {
+                            originalUrl: lessonRslVideoUrl,
+                            convertedUrl: convertedUrl
+                          });
+                          return null;
+                        })()}
+                        <iframe
+                          className="w-full h-full"
+                          src={convertToEmbedUrl(lessonRslVideoUrl)}
+                          title="RSL Instructional Video"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          onLoad={() => console.log('✅ [RSL DEBUG] Modal RSL video iframe loaded successfully')}
+                          onError={() => console.error('❌ [RSL DEBUG] Modal RSL video iframe failed to load')}
+                        ></iframe>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-100 rounded-lg p-8 text-center">
+                        {(() => {
+                          console.log('⚠️ [RSL DEBUG] Modal showing fallback - No RSL video available');
+                          return null;
+                        })()}
+                        <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
+                        <p className="text-gray-600 mb-4">No RSL video available for this quiz</p>
+                        <p className="text-sm text-gray-500">
+                          The lesson associated with this quiz does not have an RSL video.
                         </p>
                       </div>
-                    </div>
+                    )}
                   </div>
                   
                   <div className="flex justify-between">
@@ -858,20 +1152,26 @@ export const QuizAttempt: React.FC = () => {
                     <p className="text-sm text-gray-600 mb-4">
                       Watch this RSL video to help you understand the question better.
                     </p>
-                    <div className="bg-gray-100 rounded-lg p-8 text-center">
-                      <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
-                      <p className="text-gray-600 mb-4">RSL Video Player</p>
-                      <p className="text-sm text-gray-500">
-                        Video URL: {currentQuestionRSL.rsl_video_url}
-                      </p>
-                      {/* In a real implementation, you would add a proper video player here */}
-                      <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                        <p className="text-blue-800 text-sm">
-                          <strong>Note:</strong> This is a placeholder for the RSL video player. 
-                          In the actual implementation, the video from the question's rsl_video_url would be displayed here.
+                    {currentQuestionRSL?.rsl_video_url ? (
+                      <div className="relative w-full bg-gray-100 rounded-xl overflow-hidden shadow-lg" style={{ aspectRatio: '16 / 9' }}>
+                        <iframe
+                          className="w-full h-full"
+                          src={convertToEmbedUrl(currentQuestionRSL.rsl_video_url)}
+                          title={`RSL Video for Question ${currentQuestionIndex + 1}`}
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        ></iframe>
+                      </div>
+                    ) : (
+                      <div className="bg-gray-100 rounded-lg p-8 text-center">
+                        <VideoIcon size={64} className="mx-auto text-gray-400 mb-4" />
+                        <p className="text-gray-600 mb-4">No RSL video available</p>
+                        <p className="text-sm text-gray-500">
+                          This question does not have an associated RSL video.
                         </p>
                       </div>
-                    </div>
+                    )}
                   </div>
                   
                   <div className="flex justify-between">
@@ -980,8 +1280,20 @@ export const QuizAttempt: React.FC = () => {
         {/* Current Question */}
         <div className="border-t border-gray-200 pt-6">
           <div className="mb-4 flex justify-between items-center">
-            <div className="text-sm text-gray-500">
-              Question {currentQuestionIndex + 1} of {questions.length}
+            <div className="flex items-center gap-4">
+              <div className="text-sm text-gray-500">
+                Question {currentQuestionIndex + 1} of {questions.length}
+              </div>
+              {lessonRslVideoUrl && (
+                <button
+                  onClick={handleWatchRSLVideo}
+                  className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors flex items-center text-sm"
+                  title="Review lesson RSL video"
+                >
+                  <VideoIcon size={14} className="mr-1" />
+                  Review RSL Video
+                </button>
+              )}
             </div>
             <div className="text-sm text-gray-500">
               {questions[currentQuestionIndex]?.points}{' '}

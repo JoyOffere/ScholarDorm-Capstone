@@ -76,34 +76,32 @@ export const CTA = () => {
             }}
             className="flex flex-col sm:flex-row justify-center gap-4"
           >
-            <Link to="/signup">
-              <motion.button
-                whileHover={{
-                  scale: 1.03,
-                }}
-                whileTap={{
-                  scale: 0.98,
-                }}
-                className="px-8 py-4 bg-white text-primary-700 rounded-lg font-medium hover:bg-slate-100 transition-colors shadow-lg flex items-center justify-center space-x-2"
-              >
-                <UserIcon size={20} />
-                <span>Create Free Account</span>
-              </motion.button>
-            </Link>
-            <Link to="/login">
-              <motion.button
-                whileHover={{
-                  scale: 1.03,
-                }}
-                whileTap={{
-                  scale: 0.98,
-                }}
-                className="px-8 py-4 bg-primary-700 border border-primary-500 text-white rounded-lg font-medium hover:bg-primary-800 transition-colors shadow-lg flex items-center justify-center space-x-2"
-              >
-                <BookOpenIcon size={20} />
-                <span>Explore Courses</span>
-              </motion.button>
-            </Link>
+            <motion.button
+              whileHover={{
+                scale: 1.03,
+              }}
+              whileTap={{
+                scale: 0.98,
+              }}
+              className="px-8 py-4 bg-white text-primary-700 rounded-lg font-medium hover:bg-slate-100 transition-colors shadow-lg flex items-center justify-center space-x-2"
+              onClick={() => window.location.href = '/signup'}
+            >
+              <UserIcon size={20} />
+              <span>Create Free Account</span>
+            </motion.button>
+            <motion.button
+              whileHover={{
+                scale: 1.03,
+              }}
+              whileTap={{
+                scale: 0.98,
+              }}
+              className="px-8 py-4 bg-primary-700 border border-primary-500 text-white rounded-lg font-medium hover:bg-primary-800 transition-colors shadow-lg flex items-center justify-center space-x-2"
+              onClick={() => window.location.href = '/login'}
+            >
+              <BookOpenIcon size={20} />
+              <span>Explore Courses</span>
+            </motion.button>
           </motion.div>
           <motion.div
             initial={{

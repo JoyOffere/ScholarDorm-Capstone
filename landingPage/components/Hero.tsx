@@ -187,8 +187,7 @@ export const Hero = () => {
                 }}
               >
                 <Link
-                  to="/login"
-                  onClick={() => console.log('Get Started button clicked from hero')}
+                  to="/signup"
                   className="px-8 py-3 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-lg shadow-primary-200 flex items-center gap-2"
                 >
                   Get Started
