@@ -409,27 +409,20 @@ export const QuizAttempt: React.FC = () => {
     };
   }, [timeRemaining, quizComplete, submitQuiz]);
 
-  // Check if question has RSL video and show modal before rendering
+  // Immediately show RSL video when navigating to question with RSL
   useEffect(() => {
-    if (questions && questions.length > 0 && currentQuestionIndex >= 0 && canStartQuiz) {
+    if (questions && questions.length > 0 && currentQuestionIndex >= 0) {
       const question = questions[currentQuestionIndex];
-      console.log('🎬 [RSL DEBUG] Question navigation useEffect:', {
-        questionIndex: currentQuestionIndex,
-        questionId: question?.id,
-        hasRslVideo: !!question?.rsl_video_url,
-        alreadyWatched: question?.id ? questionRSLWatched[question.id] : false,
-        rslVideoUrl: question?.rsl_video_url,
-        shouldShowRsl: question?.rsl_video_url && !questionRSLWatched[question?.id]
-      });
       
-      if (question?.rsl_video_url && !questionRSLWatched[question.id] && !showQuestionRSL) {
-        console.log('✅ [RSL DEBUG] Auto-showing RSL video for question:', question.id);
+      // IMMEDIATE RSL detection - no delays or extra conditions
+      if (question?.rsl_video_url && !questionRSLWatched[question.id]) {
+        console.log('🚀 [RSL DEBUG] IMMEDIATE RSL trigger for question:', question.id);
         setCurrentQuestionRSL(question);
         setShowQuestionRSL(true);
         setPendingQuestionIndex(currentQuestionIndex);
       }
     }
-  }, [currentQuestionIndex, questions, questionRSLWatched, canStartQuiz, showQuestionRSL]);
+  }, [currentQuestionIndex, questions]); // Minimal dependencies for speed
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -444,79 +437,81 @@ export const QuizAttempt: React.FC = () => {
   };
   const navigateToQuestion = (index: number) => {
     if (index >= 0 && index < questions.length) {
+      // First close any existing RSL modals
+      setShowQuestionRSL(false);
+      setCurrentQuestionRSL(null);
+      
+      // Update question index
       setCurrentQuestionIndex(index);
+      
+      // IMMEDIATELY check for RSL video and show it
+      const question = questions[index];
+      if (question?.rsl_video_url && !questionRSLWatched[question.id]) {
+        console.log('🚀 [RSL DEBUG] INSTANT RSL trigger on navigation to question:', index + 1);
+        setCurrentQuestionRSL(question);
+        setShowQuestionRSL(true);
+        setPendingQuestionIndex(index);
+      }
     }
   };
 
   const handleWatchRSLVideo = () => {
     // Prevent multiple opens
     if (showRSLVideo) {
-      console.log('🎬 [RSL DEBUG] RSL video modal already open, ignoring click');
       return;
     }
     
-    console.log('🎬 [RSL DEBUG] handleWatchRSLVideo triggered', {
-      lessonRslVideoUrl,
-      hasVideoUrl: !!lessonRslVideoUrl,
-      currentShowRSLVideo: showRSLVideo
-    });
+    console.log('🚀 [RSL DEBUG] INSTANT Quiz RSL modal open');
     setShowRSLVideo(true);
   };
 
   const handleRSLVideoWatched = () => {
-    console.log('✅ [RSL DEBUG] handleRSLVideoWatched triggered - User completed watching RSL video');
+    console.log('✅ [RSL DEBUG] FAST Quiz RSL completion');
     setRslVideoWatched(true);
     setShowRSLVideo(false);
     setCanStartQuiz(true);
   };
 
   const handleSkipRSLVideo = () => {
-    console.log('⏭️ [RSL DEBUG] handleSkipRSLVideo triggered - User skipped RSL video');
+    console.log('⏭️ [RSL DEBUG] FAST Quiz RSL skip');
     setShowRSLVideo(false);
     setCanStartQuiz(true);
   };
 
   const handleWatchQuestionRSL = () => {
     const currentQuestion = questions[currentQuestionIndex];
-    console.log('🎬 [RSL DEBUG] handleWatchQuestionRSL triggered:', {
-      currentQuestionIndex,
-      currentQuestion: currentQuestion ? {
-        id: currentQuestion.id,
-        order_index: currentQuestion.order_index,
-        rsl_video_url: currentQuestion.rsl_video_url,
-        hasRslVideo: !!currentQuestion.rsl_video_url
-      } : null,
-      questionsLength: questions.length
-    });
     
     if (currentQuestion && currentQuestion.rsl_video_url) {
-      console.log('✅ [RSL DEBUG] Setting up question RSL modal:', currentQuestion.rsl_video_url);
+      console.log('🚀 [RSL DEBUG] INSTANT RSL modal setup:', currentQuestion.rsl_video_url);
+      // IMMEDIATE state updates - no delays
       setCurrentQuestionRSL(currentQuestion);
       setShowQuestionRSL(true);
-    } else {
-      console.log('❌ [RSL DEBUG] No RSL video found for current question');
     }
   };
 
   const handleQuestionRSLWatched = () => {
+    console.log('✅ [RSL DEBUG] FAST RSL completion');
     if (currentQuestionRSL) {
       setQuestionRSLWatched(prev => ({
         ...prev,
         [currentQuestionRSL.id]: true
       }));
     }
+    // IMMEDIATE modal close
     setShowQuestionRSL(false);
     setCurrentQuestionRSL(null);
     setPendingQuestionIndex(null);
   };
 
   const handleSkipQuestionRSL = () => {
+    console.log('⏭️ [RSL DEBUG] FAST RSL skip');
     if (currentQuestionRSL) {
       setQuestionRSLWatched(prev => ({
         ...prev,
         [currentQuestionRSL.id]: true
       }));
     }
+    // IMMEDIATE modal close
     setShowQuestionRSL(false);
     setCurrentQuestionRSL(null);
     setPendingQuestionIndex(null);

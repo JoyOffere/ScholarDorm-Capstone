@@ -825,313 +825,697 @@ export const AdminQuizManagement: React.FC = () => {
     setPreviewShowResults(false);
   };
 
-  return <DashboardLayout title="Quiz Management" role="admin">
-      {/* Filters and actions */}
-      <div className="bg-white rounded-lg shadow-sm p-4 sm:p-6 border border-gray-200 mb-6">
+  return (
+    <DashboardLayout title="Quiz Management" role="admin">
+      {/* Analytics Dashboard Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Total Quizzes</p>
+              <p className="text-3xl font-bold">{quizzes.length}</p>
+            </div>
+            <ClipboardListIcon size={32} className="text-purple-200" />
+          </div>
+          <div className="mt-3">
+            <span className="text-purple-100 text-xs">
+              {quizzes.filter(q => q.is_published).length} Published • {quizzes.filter(q => !q.is_published).length} Drafts
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">RSL Enabled</p>
+              <p className="text-3xl font-bold">{quizzes.filter(q => q.rsl_enabled && q.rsl_video_url).length}</p>
+            </div>
+            <VideoIcon size={32} className="text-green-200" />
+          </div>
+          <div className="mt-3">
+            <span className="text-green-100 text-xs">
+              {Math.round((quizzes.filter(q => q.rsl_enabled && q.rsl_video_url).length / Math.max(quizzes.length, 1)) * 100)}% Coverage
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Questions</p>
+              <p className="text-3xl font-bold">{quizzes.reduce((sum, q) => sum + (q.question_count || 0), 0)}</p>
+            </div>
+            <BookOpenIcon size={32} className="text-blue-200" />
+          </div>
+          <div className="mt-3">
+            <span className="text-blue-100 text-xs">
+              Avg {Math.round(quizzes.reduce((sum, q) => sum + (q.question_count || 0), 0) / Math.max(quizzes.length, 1))} per quiz
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-100 text-sm font-medium">Active Courses</p>
+              <p className="text-3xl font-bold">{courses.length}</p>
+            </div>
+            <UsersIcon size={32} className="text-orange-200" />
+          </div>
+          <div className="mt-3">
+            <span className="text-orange-100 text-xs">
+              Across {new Set(quizzes.map(q => q.course_title).filter(Boolean)).size || 0} subjects
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions Panel */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 mb-8 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+          <SettingsIcon size={20} className="mr-2 text-purple-600" />
+          Quick Actions
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+          <button 
+            onClick={() => setShowCreateModal(true)}
+            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-purple-300 hover:border-purple-500 hover:bg-purple-50 transition-all duration-200 group"
+          >
+            <PlusIcon size={24} className="text-purple-600 group-hover:text-purple-700 mb-2" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-purple-700">New Quiz</span>
+          </button>
+
+          <button 
+            onClick={() => {/* TODO: Implement bulk import */}}
+            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 transition-all duration-200 group"
+          >
+            <DownloadIcon size={24} className="text-blue-600 group-hover:text-blue-700 mb-2" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-blue-700">Import</span>
+          </button>
+
+          <button 
+            onClick={() => {/* TODO: Implement analytics view */}}
+            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-green-300 hover:border-green-500 hover:bg-green-50 transition-all duration-200 group"
+          >
+            <BarChart3Icon size={24} className="text-green-600 group-hover:text-green-700 mb-2" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-green-700">Analytics</span>
+          </button>
+
+          <button 
+            onClick={() => {/* TODO: Implement RSL batch setup */}}
+            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-indigo-300 hover:border-indigo-500 hover:bg-indigo-50 transition-all duration-200 group"
+          >
+            <VideoIcon size={24} className="text-indigo-600 group-hover:text-indigo-700 mb-2" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-indigo-700">RSL Setup</span>
+          </button>
+
+          <button 
+            onClick={resetFilters}
+            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-gray-300 hover:border-gray-500 hover:bg-gray-50 transition-all duration-200 group"
+          >
+            <RefreshCwIcon size={24} className="text-gray-600 group-hover:text-gray-700 mb-2" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-gray-700">Reset</span>
+          </button>
+
+          <button 
+            className="flex flex-col items-center p-4 rounded-lg border-2 border-dashed border-yellow-300 hover:border-yellow-500 hover:bg-yellow-50 transition-all duration-200 group"
+          >
+            <CalendarIcon size={24} className="text-yellow-600 group-hover:text-yellow-700 mb-2" />
+            <span className="text-sm font-medium text-gray-700 group-hover:text-yellow-700">Schedule</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Enhanced Filters and Search */}
+      <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 border border-gray-200 mb-6">
         <div className="flex flex-col gap-4">
-          {/* Search */}
+          {/* Enhanced Search with suggestions */}
           <div className="relative flex-1">
             <form onSubmit={handleSearch}>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <SearchIcon size={18} className="text-gray-400" />
               </div>
-              <input type="text" className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500" placeholder="Search quizzes by title or description..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+              <input 
+                type="text" 
+                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm" 
+                placeholder="Search quizzes by title, description, or course..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <XIcon size={16} className="text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
             </form>
           </div>
-          <div className="flex flex-wrap justify-between items-center gap-2">
-            {/* Mobile filter toggle */}
-            <button className="md:hidden inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50" onClick={() => setShowMobileFilters(!showMobileFilters)}>
-              <FilterIcon size={16} className="mr-2" />
-              {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
-            </button>
-            {/* Create Quiz button */}
-            <button className="inline-flex items-center px-3 py-2 border border-transparent rounded-lg text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500" onClick={() => setShowCreateModal(true)}>
-              <PlusIcon size={16} className="mr-2" />
-              New Quiz
-            </button>
-          </div>
-          {/* Filters - hidden on mobile unless toggled */}
-          <div className={`flex flex-wrap items-center gap-3 ${showMobileFilters ? 'flex' : 'hidden md:flex'}`}>
-            {/* Course Filter */}
-            <div className="relative inline-block text-left w-full md:w-auto">
-              <select className="block w-full appearance-none bg-white border border-gray-300 rounded-lg py-2 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500" value={courseFilter || ''} onChange={e => setCourseFilter(e.target.value || null)}>
-                <option value="">All Courses</option>
-                {courses.map(course => <option key={course.id} value={course.id}>
-                    {course.title}
-                  </option>)}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                <FilterIcon size={16} />
-              </div>
-            </div>
-            {/* Status Filter */}
-            <div className="relative inline-block text-left w-full md:w-auto">
-              <select className="block w-full appearance-none bg-white border border-gray-300 rounded-lg py-2 pl-3 pr-8 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500" value={statusFilter === null ? '' : statusFilter ? 'published' : 'draft'} onChange={e => {
-              if (e.target.value === '') setStatusFilter(null);else setStatusFilter(e.target.value === 'published');
-            }}>
-                <option value="">All Status</option>
-                <option value="published">Published</option>
-                <option value="draft">Draft</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
-                <FilterIcon size={16} />
-              </div>
-            </div>
-            {/* Reset Filters */}
-            {(searchTerm || courseFilter || statusFilter !== null) && <button onClick={resetFilters} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full md:w-auto">
-                <RefreshCwIcon size={16} className="mr-2" />
-                Reset Filters
-              </button>}
-            {/* Export */}
-            <button className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-purple-500 w-full md:w-auto">
-              <DownloadIcon size={16} className="mr-2" />
-              Export
-            </button>
-          </div>
-        </div>
-      </div>
-      {/* Quizzes Table - Desktop View */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden hidden md:block">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Quiz
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Course
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Questions
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  RSL Video
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Last Updated
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center">
-                    <div className="flex justify-center items-center">
-                      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500"></div>
-                      <span className="ml-2 text-gray-500">
-                        Loading quizzes...
-                      </span>
-                    </div>
-                  </td>
-                </tr> : quizzes.length === 0 ? <tr>
-                  <td colSpan={7} className="px-6 py-4 text-center">
-                    <div className="text-center py-8">
-                      <ClipboardListIcon size={48} className="mx-auto text-gray-400 mb-4" />
-                      <h3 className="text-lg font-medium text-gray-800 mb-2">
-                        No quizzes found
-                      </h3>
-                      <p className="text-gray-600">
-                        {searchTerm || courseFilter || statusFilter !== null ? 'Try adjusting your search or filter criteria.' : 'Get started by creating your first quiz.'}
-                      </p>
-                      {searchTerm || courseFilter || statusFilter !== null ? <button onClick={resetFilters} className="mt-4 text-purple-600 hover:text-purple-800 font-medium">
-                          Reset all filters
-                        </button> : <button className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => setShowCreateModal(true)}>
-                          <PlusIcon size={16} className="mr-2" />
-                          Create Quiz
-                        </button>}
-                    </div>
-                  </td>
-                </tr> : quizzes.map(quiz => <tr key={quiz.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => handleQuizClick(quiz)}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 flex items-center justify-center rounded bg-purple-100 text-purple-600">
-                          <ClipboardListIcon size={20} />
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">
-                            {quiz.title}
-                          </div>
-                          <div className="text-xs text-gray-500 truncate max-w-xs">
-                            {quiz.description}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        {quiz.course_title}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {quiz.question_count} questions
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {quiz.rsl_enabled && quiz.rsl_video_url ? (
-                        <div className="flex items-center">
-                          <VideoIcon size={16} className="text-purple-600 mr-1" />
-                          <span className="text-xs text-purple-600 font-medium">RSL Ready</span>
-                        </div>
-                      ) : quiz.rsl_enabled ? (
-                        <div className="flex items-center">
-                          <VideoIcon size={16} className="text-yellow-600 mr-1" />
-                          <span className="text-xs text-yellow-600 font-medium">RSL Enabled</span>
-                        </div>
-                      ) : (
-                        <div className="flex items-center">
-                          <VideoIcon size={16} className="text-gray-400 mr-1" />
-                          <span className="text-xs text-gray-500">No RSL</span>
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${quiz.is_published ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {quiz.is_published ? <>
-                            <CheckCircleIcon size={12} className="mr-1" />
-                            Published
-                          </> : <>
-                            <XCircleIcon size={12} className="mr-1" />
-                            Draft
-                          </>}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(quiz.updated_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2" onClick={e => e.stopPropagation()}>
-                        <button className="text-purple-600 hover:text-purple-900" title="Edit quiz" onClick={e => {
-                    e.stopPropagation();
-                    handleQuizClick(quiz);
-                    setIsEditing(true);
-                  }}>
-                          <EditIcon size={16} />
-                        </button>
-                        <button onClick={e => {
-                    e.stopPropagation();
-                    handleDeleteClick(quiz.id);
-                  }} className="text-red-600 hover:text-red-900" title="Delete quiz">
-                          <TrashIcon size={16} />
-                        </button>
-                        <button className="text-blue-600 hover:text-blue-900" title="Preview quiz" onClick={e => {
-                    e.stopPropagation();
-                    handlePreviewQuiz(quiz);
-                  }}>
-                          <EyeIcon size={16} />
-                        </button>
-                        <button className="text-gray-500 hover:text-gray-700" title="More options">
-                          <MoreHorizontalIcon size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>)}
-            </tbody>
-          </table>
-        </div>
-        {/* Pagination */}
-        {quizzes.length > 0 && <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-            <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-              <div>
-                <p className="text-sm text-gray-700">
-                  Showing <span className="font-medium">1</span> to{' '}
-                  <span className="font-medium">{quizzes.length}</span> of{' '}
-                  <span className="font-medium">{quizzes.length}</span> results
-                </p>
-              </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                  <a href="#" className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                    <span className="sr-only">Previous</span>
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </a>
-                  <a href="#" aria-current="page" className="z-10 bg-purple-50 border-purple-500 text-purple-600 relative inline-flex items-center px-4 py-2 border text-sm font-medium">
-                    1
-                  </a>
-                  <a href="#" className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
-                    <span className="sr-only">Next</span>
-                    <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </a>
-                </nav>
-              </div>
-            </div>
-          </div>}
-      </div>
-      {/* Mobile Quiz Cards */}
-      <div className="md:hidden">
-        {loading ? <div className="flex justify-center items-center h-32">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
-            <span className="ml-2 text-gray-500">Loading quizzes...</span>
-          </div> : quizzes.length === 0 ? <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 text-center">
-            <ClipboardListIcon size={40} className="mx-auto text-gray-400 mb-3" />
-            <h3 className="text-lg font-medium text-gray-800 mb-2">
-              No quizzes found
-            </h3>
-            <p className="text-sm text-gray-600 mb-4">
-              {searchTerm || courseFilter || statusFilter !== null ? 'Try adjusting your search or filter criteria.' : 'Get started by creating your first quiz.'}
-            </p>
-            {searchTerm || courseFilter || statusFilter !== null ? <button onClick={resetFilters} className="w-full text-purple-600 hover:text-purple-800 font-medium">
-                Reset all filters
-              </button> : <button className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700" onClick={() => setShowCreateModal(true)}>
-                <PlusIcon size={16} className="mr-2" />
-                Create Quiz
-              </button>}
-          </div> : <div className="space-y-4">
-            {quizzes.map(quiz => <div key={quiz.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" onClick={() => handleQuizClick(quiz)}>
-                <div className="p-4">
-                  <div className="flex justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-medium text-gray-900 truncate">
-                        {quiz.title}
-                      </h3>
-                      <p className="mt-1 flex items-center text-xs text-gray-500">
-                        <BookOpenIcon size={12} className="mr-1" />
-                        <span className="truncate">{quiz.course_title}</span>
-                      </p>
-                    </div>
-                    <div className="ml-2 flex-shrink-0">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${quiz.is_published ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                        {quiz.is_published ? 'Published' : 'Draft'}
-                      </span>
-                    </div>
+          {/* Enhanced Filter Bar */}
+          <div className="flex flex-wrap justify-between items-center gap-3">
+            {/* Left side filters */}
+            <div className="flex flex-wrap items-center gap-3 flex-1">
+              {/* Mobile filter toggle */}
+              <button className="lg:hidden inline-flex items-center px-3 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors" onClick={() => setShowMobileFilters(!showMobileFilters)}>
+                <FilterIcon size={16} className="mr-2" />
+                {showMobileFilters ? 'Hide Filters' : 'Show Filters'}
+              </button>
+
+              {/* Filters - always visible on desktop */}
+              <div className={`flex flex-wrap items-center gap-3 w-full lg:w-auto ${showMobileFilters ? 'flex' : 'hidden lg:flex'}`}>
+                {/* Course Filter */}
+                <div className="relative w-full sm:w-48">
+                  <select className="block w-full appearance-none bg-white border border-gray-300 rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm" value={courseFilter || ''} onChange={e => setCourseFilter(e.target.value || null)}>
+                    <option value="">All Courses</option>
+                    {courses.map(course => <option key={course.id} value={course.id}>
+                        {course.title}
+                      </option>)}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700">
+                    <FilterIcon size={16} />
                   </div>
                 </div>
-              </div>)}
-          </div>}
-      </div>
-      {/* Quiz Detail Modal */}
-      {showQuizModal && selectedQuiz && <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+
+                {/* Status Filter */}
+                <div className="relative w-full sm:w-36">
+                  <select className="block w-full appearance-none bg-white border border-gray-300 rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm" value={statusFilter === null ? '' : statusFilter ? 'published' : 'draft'} onChange={e => {
+                  if (e.target.value === '') setStatusFilter(null);else setStatusFilter(e.target.value === 'published');
+                }}>
+                    <option value="">All Status</option>
+                    <option value="published">Published</option>
+                    <option value="draft">Draft</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700">
+                    <FilterIcon size={16} />
+                  </div>
+                </div>
+
+                {/* RSL Filter */}
+                <div className="relative w-full sm:w-32">
+                  <select className="block w-full appearance-none bg-white border border-gray-300 rounded-xl py-2.5 pl-4 pr-10 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm">
+                    <option value="">RSL Status</option>
+                    <option value="enabled">RSL Ready</option>
+                    <option value="partial">RSL Enabled</option>
+                    <option value="none">No RSL</option>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-700">
+                    <VideoIcon size={16} />
+                  </div>
+                </div>
+              </div>
             </div>
+
+            {/* Right side actions */}
+            <div className="flex items-center gap-2">
+              {/* Active filter indicator */}
+              {(searchTerm || courseFilter || statusFilter !== null) && (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                  {[searchTerm && 'Search', courseFilter && 'Course', statusFilter !== null && 'Status'].filter(Boolean).join(', ')} active
+                </span>
+              )}
+
+              {/* Reset Filters */}
+              {(searchTerm || courseFilter || statusFilter !== null) && (
+                <button onClick={resetFilters} className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                  <RefreshCwIcon size={16} className="mr-2" />
+                  Reset
+                </button>
+              )}
+
+              {/* Export */}
+              <button className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-xl text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                <DownloadIcon size={16} className="mr-2" />
+                Export
+              </button>
+
+              {/* View Toggle */}
+              <div className="hidden md:flex border border-gray-300 rounded-xl p-1">
+                <button className="p-1.5 rounded-lg bg-purple-100 text-purple-600">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 3h7v7H3V3zm0 11h7v7H3v-7zm11-11h7v7h-7V3zm0 11h7v7h-7v-7z"/>
+                  </svg>
+                </button>
+                <button className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M3 4h18v2H3V4zm0 7h18v2H3v-2zm0 7h18v2H3v-2z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats Bar */}
+          {quizzes.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between pt-4 border-t border-gray-200">
+              <div className="flex items-center gap-6 text-sm text-gray-600">
+                <span className="flex items-center">
+                  <ClipboardListIcon size={16} className="mr-1" />
+                  {quizzes.length} Total
+                </span>
+                <span className="flex items-center">
+                  <CheckCircleIcon size={16} className="mr-1 text-green-600" />
+                  {quizzes.filter(q => q.is_published).length} Published
+                </span>
+                <span className="flex items-center">
+                  <VideoIcon size={16} className="mr-1 text-purple-600" />
+                  {quizzes.filter(q => q.rsl_enabled && q.rsl_video_url).length} RSL Ready
+                </span>
+              </div>
+              <div className="text-sm text-gray-500">
+                Last updated: {quizzes[0]?.updated_at ? new Date(quizzes[0].updated_at).toLocaleDateString() : 'N/A'}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Performance Metrics & Recent Activity Row */}
+      {quizzes.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* Performance Metrics */}
+          <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <BarChart3Icon size={20} className="mr-2 text-purple-600" />
+              Quiz Performance Overview
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl border border-blue-200">
+                <div className="text-2xl font-bold text-blue-700">
+                  {Math.round(quizzes.reduce((sum, q) => sum + (q.question_count || 0), 0) / Math.max(quizzes.length, 1))}
+                </div>
+                <div className="text-xs text-blue-600 font-medium">Avg Questions</div>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-xl border border-green-200">
+                <div className="text-2xl font-bold text-green-700">
+                  {Math.round(quizzes.reduce((sum, q) => sum + q.passing_score, 0) / Math.max(quizzes.length, 1))}%
+                </div>
+                <div className="text-xs text-green-600 font-medium">Avg Pass Rate</div>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                <div className="text-2xl font-bold text-purple-700">
+                  {Math.round((quizzes.filter(q => q.rsl_enabled && q.rsl_video_url).length / Math.max(quizzes.length, 1)) * 100)}%
+                </div>
+                <div className="text-xs text-purple-600 font-medium">RSL Coverage</div>
+              </div>
+              <div className="text-center p-4 bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-xl border border-indigo-200">
+                <div className="text-2xl font-bold text-indigo-700">
+                  {Math.round((quizzes.filter(q => q.is_published).length / Math.max(quizzes.length, 1)) * 100)}%
+                </div>
+                <div className="text-xs text-indigo-600 font-medium">Published</div>
+              </div>
+            </div>
+            
+            {/* Quick Stats Bar */}
+            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Most Questions</span>
+                  <ClipboardListIcon size={16} className="text-gray-400" />
+                </div>
+                <div className="text-lg font-semibold text-gray-900 truncate">
+                  {quizzes.sort((a, b) => (b.question_count || 0) - (a.question_count || 0))[0]?.title || 'N/A'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {quizzes.sort((a, b) => (b.question_count || 0) - (a.question_count || 0))[0]?.question_count || 0} questions
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">Latest Updated</span>
+                  <CalendarIcon size={16} className="text-gray-400" />
+                </div>
+                <div className="text-lg font-semibold text-gray-900 truncate">
+                  {quizzes.sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0]?.title || 'N/A'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {quizzes[0]?.updated_at ? new Date(quizzes[0].updated_at).toLocaleDateString() : 'N/A'}
+                </div>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-600">RSL Leader</span>
+                  <VideoIcon size={16} className="text-gray-400" />
+                </div>
+                <div className="text-lg font-semibold text-gray-900 truncate">
+                  {quizzes.filter(q => q.rsl_enabled && q.rsl_video_url)[0]?.title || 'No RSL Quizzes'}
+                </div>
+                <div className="text-xs text-gray-500">
+                  {quizzes.filter(q => q.rsl_enabled && q.rsl_video_url).length > 0 ? 'RSL Ready' : 'Set up RSL videos'}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Recent Activity */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+              <ClockIcon size={20} className="mr-2 text-green-600" />
+              Recent Activity
+            </h3>
+            <div className="space-y-4">
+              {quizzes
+                .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+                .slice(0, 5)
+                .map((quiz, index) => (
+                  <div key={quiz.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onClick={() => handleQuizClick(quiz)}>
+                    <div className={`w-2 h-2 rounded-full ${
+                      index === 0 ? 'bg-green-500' : 
+                      index === 1 ? 'bg-blue-500' : 
+                      'bg-gray-400'
+                    }`}></div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 truncate">
+                        {quiz.title}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Updated {new Date(quiz.updated_at).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric'
+                        })}
+                      </div>
+                    </div>
+                    <div className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      quiz.is_published 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      {quiz.is_published ? 'Live' : 'Draft'}
+                    </div>
+                  </div>
+                ))
+              }
+              
+              {quizzes.length === 0 && (
+                <div className="text-center text-gray-500 py-8">
+                  <ClockIcon size={32} className="mx-auto text-gray-300 mb-2" />
+                  <p className="text-sm">No recent activity</p>
+                </div>
+              )}
+              
+              {quizzes.length > 5 && (
+                <button 
+                  onClick={() => {/* TODO: Implement show more functionality */}} 
+                  className="w-full text-center text-sm text-purple-600 hover:text-purple-800 font-medium py-2 border-t border-gray-200"
+                >
+                  Show More ({quizzes.length - 5} more quizzes)
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Enhanced Quiz Grid Layout */}
+      <div className="space-y-6">
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
+              <span className="text-gray-500 font-medium">Loading quizzes...</span>
+              <p className="text-sm text-gray-400 mt-1">Please wait while we fetch your quiz data</p>
+            </div>
+          </div>
+        ) : quizzes.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-lg p-12 border border-gray-200 text-center">
+            <div className="w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center">
+              <ClipboardListIcon size={48} className="text-purple-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-3">
+              {searchTerm || courseFilter || statusFilter !== null ? 'No matches found' : 'No quizzes yet'}
+            </h3>
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+              {searchTerm || courseFilter || statusFilter !== null 
+                ? 'Try adjusting your search criteria or filters to find the quizzes you\'re looking for.' 
+                : 'Ready to create your first quiz? Click the button below to get started and engage your students with interactive content.'}
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              {searchTerm || courseFilter || statusFilter !== null ? (
+                <button 
+                  onClick={resetFilters} 
+                  className="inline-flex items-center px-6 py-3 border border-purple-300 rounded-xl text-purple-700 bg-purple-50 hover:bg-purple-100 font-medium transition-colors"
+                >
+                  <RefreshCwIcon size={20} className="mr-2" />
+                  Reset All Filters
+                </button>
+              ) : (
+                <button 
+                  className="inline-flex items-center px-8 py-4 border border-transparent text-lg font-medium rounded-xl text-white bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5" 
+                  onClick={() => setShowCreateModal(true)}
+                >
+                  <PlusIcon size={24} className="mr-3" />
+                  Create Your First Quiz
+                </button>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {quizzes.map(quiz => (
+              <div 
+                key={quiz.id} 
+                className="group bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-1" 
+                onClick={() => handleQuizClick(quiz)}
+              >
+                {/* Quiz Card Header */}
+                <div className="relative p-6 bg-gradient-to-br from-purple-500 to-purple-600">
+                  {/* Status Badge */}
+                  <div className="absolute top-4 right-4">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${
+                      quiz.is_published 
+                        ? 'bg-green-100 text-green-800 border border-green-200' 
+                        : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                    }`}>
+                      {quiz.is_published ? (
+                        <>
+                          <CheckCircleIcon size={12} className="mr-1" />
+                          Published
+                        </>
+                      ) : (
+                        <>
+                          <ClockIcon size={12} className="mr-1" />
+                          Draft
+                        </>
+                      )}
+                    </span>
+                  </div>
+
+                  {/* Quiz Icon */}
+                  <div className="w-12 h-12 bg-white bg-opacity-20 rounded-xl flex items-center justify-center mb-4">
+                    <ClipboardListIcon size={24} className="text-white" />
+                  </div>
+
+                  {/* Quiz Title */}
+                  <h3 className="text-xl font-bold text-white mb-2 pr-20 line-clamp-2">
+                    {quiz.title}
+                  </h3>
+
+                  {/* Course Badge */}
+                  {quiz.course_title && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-white bg-opacity-20 text-white border border-white border-opacity-30">
+                      <BookOpenIcon size={14} className="mr-1" />
+                      {quiz.course_title}
+                    </span>
+                  )}
+                </div>
+
+                {/* Quiz Card Body */}
+                <div className="p-6">
+                  {/* Description */}
+                  {quiz.description && (
+                    <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+                      {quiz.description}
+                    </p>
+                  )}
+
+                  {/* Quiz Stats */}
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <div className="text-2xl font-bold text-gray-900">{quiz.question_count || 0}</div>
+                      <div className="text-xs text-gray-500 font-medium">Questions</div>
+                    </div>
+                    <div className="text-center p-3 bg-gray-50 rounded-xl">
+                      <div className="text-2xl font-bold text-gray-900">{quiz.passing_score}%</div>
+                      <div className="text-xs text-gray-500 font-medium">Pass Score</div>
+                    </div>
+                  </div>
+
+                  {/* RSL Status */}
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-medium text-gray-700">RSL Support:</span>
+                    {quiz.rsl_enabled && quiz.rsl_video_url ? (
+                      <div className="flex items-center text-purple-600">
+                        <VideoIcon size={16} className="mr-1" />
+                        <span className="text-sm font-medium">Ready</span>
+                      </div>
+                    ) : quiz.rsl_enabled ? (
+                      <div className="flex items-center text-yellow-600">
+                        <VideoIcon size={16} className="mr-1" />
+                        <span className="text-sm font-medium">Enabled</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center text-gray-400">
+                        <VideoIcon size={16} className="mr-1" />
+                        <span className="text-sm font-medium">Disabled</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Last Updated */}
+                  <div className="text-xs text-gray-500 mb-4">
+                    Updated {new Date(quiz.updated_at).toLocaleDateString('en-US', { 
+                      month: 'short', 
+                      day: 'numeric', 
+                      year: 'numeric' 
+                    })}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                    <div className="flex space-x-2">
+                      <button 
+                        className="p-2 text-purple-600 hover:text-purple-800 hover:bg-purple-50 rounded-lg transition-colors" 
+                        title="Edit quiz" 
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleQuizClick(quiz);
+                          setIsEditing(true);
+                        }}
+                      >
+                        <EditIcon size={18} />
+                      </button>
+                      <button 
+                        className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors" 
+                        title="Preview quiz" 
+                        onClick={e => {
+                          e.stopPropagation();
+                          handlePreviewQuiz(quiz);
+                        }}
+                      >
+                        <EyeIcon size={18} />
+                      </button>
+                      <button 
+                        onClick={e => {
+                          e.stopPropagation();
+                          handleDeleteClick(quiz.id);
+                        }} 
+                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors" 
+                        title="Delete quiz"
+                      >
+                        <TrashIcon size={18} />
+                      </button>
+                    </div>
+                    <button 
+                      className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition-colors" 
+                      title="More options"
+                    >
+                      <MoreHorizontalIcon size={18} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Enhanced Pagination */}
+        {quizzes.length > 0 && (
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="text-sm text-gray-600">
+                Showing <span className="font-semibold text-gray-900">1</span> to{' '}
+                <span className="font-semibold text-gray-900">{quizzes.length}</span> of{' '}
+                <span className="font-semibold text-gray-900">{quizzes.length}</span> results
+              </div>
+              
+              <nav className="flex items-center space-x-2" aria-label="Pagination">
+                <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Previous
+                </button>
+                
+                <div className="flex space-x-1">
+                  <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-white bg-purple-600 border border-purple-600 rounded-xl">
+                    1
+                  </button>
+                </div>
+                
+                <button className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-xl hover:bg-gray-50 hover:text-gray-700 transition-colors">
+                  Next
+                  <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </nav>
+            </div>
+          </div>
+        )}
+      </div>
+      {/* Enhanced Quiz Detail Modal */}
+      {showQuizModal && selectedQuiz && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowQuizModal(false);
+              setIsEditing(false);
+            }
+          }}
+        >
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            {/* Backdrop */}
+            <div 
+              className="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity backdrop-blur-sm" 
+              aria-hidden="true"
+              onClick={() => {
+                setShowQuizModal(false);
+                setIsEditing(false);
+              }}
+            ></div>
+            
+            {/* Center modal */}
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
               &#8203;
             </span>
-            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full" style={{
-          maxWidth: '90%',
-          width: '600px'
-        }}>
-              {/* Modal Header */}
-              <div className="bg-purple-50 px-4 py-3 border-b border-purple-100 flex justify-between items-center">
-                <h3 className="text-lg font-medium text-purple-900">
-                  {isEditing ? 'Edit Quiz' : 'Quiz Details'}
-                </h3>
-                <button onClick={() => setShowQuizModal(false)} className="text-purple-500 hover:text-purple-700 focus:outline-none">
-                  <XIcon size={20} />
+            
+            {/* Modal Content */}
+            <div 
+              className="inline-block align-bottom bg-white rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full relative"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                maxWidth: '95%',
+                width: isEditing ? '900px' : '700px'
+              }}
+            >
+              {/* Enhanced Modal Header */}
+              <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex justify-between items-center">
+                <div>
+                  <h3 className="text-xl font-bold text-white">
+                    {isEditing ? 'Edit Quiz' : 'Quiz Details'}
+                  </h3>
+                  <p className="text-purple-100 text-sm mt-1">
+                    {isEditing ? 'Modify quiz settings and questions' : 'View and manage quiz information'}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowQuizModal(false);
+                    setIsEditing(false);
+                  }} 
+                  className="text-purple-200 hover:text-white focus:outline-none p-2 rounded-lg hover:bg-purple-600 transition-colors"
+                >
+                  <XIcon size={24} />
                 </button>
               </div>
               {/* Modal Content */}
               <div className="p-6">
-                {isEditing /* Edit Form with Tabs */ ? <div>
+                {isEditing ? (
+                  // Edit Form with Tabs
+                  <div>
                     {/* Tab Navigation */}
                     <div className="border-b border-gray-200 mb-6">
                       <nav className="-mb-px flex space-x-8">
@@ -1275,76 +1659,300 @@ export const AdminQuizManagement: React.FC = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <h4 className="text-lg font-medium text-gray-900">Quiz Questions</h4>
-                          <button
-                            onClick={() => {/* TODO: Add new question */}}
-                            className="px-3 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center"
-                          >
-                            <PlusIcon size={16} className="mr-1" />
-                            Add Question
-                          </button>
+                        {/* Enhanced Question Header */}
+                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 pb-4 border-b border-gray-200">
+                          <div>
+                            <h4 className="text-xl font-bold text-gray-900">Quiz Questions</h4>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {editQuestions.length} questions • Total points: {editQuestions.reduce((sum, q) => sum + (q.points || 0), 0)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={async () => {
+                                try {
+                                  // Fetch questions for this quiz
+                                  const { data, error } = await supabase
+                                    .from('enhanced_quiz_questions')
+                                    .select('*')
+                                    .eq('quiz_id', selectedQuiz.id)
+                                    .order('order_index');
+                                  
+                                  if (error) throw error;
+                                  
+                                  setEditQuestions(data || []);
+                                  // Load RSL data for questions
+                                  const rslData: Record<string, any> = {};
+                                  (data || []).forEach(q => {
+                                    if (q.rsl_video_url || q.rsl_description) {
+                                      rslData[q.id] = {
+                                        rsl_video_url: q.rsl_video_url,
+                                        description: q.rsl_description
+                                      };
+                                    }
+                                  });
+                                  setEditQuestionsRsl(rslData);
+                                } catch (error) {
+                                  console.error('Error loading questions:', error);
+                                  alert('Failed to load questions');
+                                }
+                              }}
+                              className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                            >
+                              <RefreshCwIcon size={16} className="mr-1" />
+                              Load Questions
+                            </button>
+                            <button
+                              onClick={() => {
+                                // Create a new question template
+                                const newQuestion = {
+                                  id: `temp_${Date.now()}`,
+                                  quiz_id: selectedQuiz.id,
+                                  question_text: '',
+                                  question_type: 'multiple_choice',
+                                  options: ['', '', '', ''],
+                                  correct_answer: [0],
+                                  explanation: '',
+                                  points: 1,
+                                  difficulty_level: 'medium',
+                                  order_index: editQuestions.length
+                                };
+                                setEditQuestions([...editQuestions, newQuestion]);
+                              }}
+                              className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors flex items-center shadow-lg"
+                            >
+                              <PlusIcon size={16} className="mr-2" />
+                              Add Question
+                            </button>
+                          </div>
                         </div>
                         
                         {editQuestions.length === 0 ? (
-                          <div className="text-center py-8 bg-gray-50 rounded-lg">
-                            <ClipboardListIcon size={48} className="mx-auto text-gray-400 mb-4" />
-                            <p className="text-gray-600 mb-4">No questions added yet</p>
-                            <button
-                              onClick={() => {/* TODO: Add first question */}}
-                              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-                            >
-                              Add Your First Question
-                            </button>
+                          <div className="text-center py-12 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl border border-gray-200">
+                            <div className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center">
+                              <ClipboardListIcon size={40} className="text-purple-600" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Questions Yet</h3>
+                            <p className="text-gray-600 mb-6 max-w-sm mx-auto">
+                              Start building your quiz by adding questions. You can create multiple choice, true/false, or open-ended questions.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                              <button
+                                onClick={() => {
+                                  const newQuestion = {
+                                    id: `temp_${Date.now()}`,
+                                    quiz_id: selectedQuiz.id,
+                                    question_text: '',
+                                    question_type: 'multiple_choice',
+                                    options: ['', '', '', ''],
+                                    correct_answer: [0],
+                                    explanation: '',
+                                    points: 1,
+                                    difficulty_level: 'medium',
+                                    order_index: 0
+                                  };
+                                  setEditQuestions([newQuestion]);
+                                }}
+                                className="px-6 py-3 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-colors font-medium shadow-lg"
+                              >
+                                Create First Question
+                              </button>
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    const { data, error } = await supabase
+                                      .from('enhanced_quiz_questions')
+                                      .select('*')
+                                      .eq('quiz_id', selectedQuiz.id)
+                                      .order('order_index');
+                                    
+                                    if (error) throw error;
+                                    
+                                    if (data && data.length > 0) {
+                                      setEditQuestions(data);
+                                      const rslData: Record<string, any> = {};
+                                      data.forEach(q => {
+                                        if (q.rsl_video_url || q.rsl_description) {
+                                          rslData[q.id] = {
+                                            rsl_video_url: q.rsl_video_url,
+                                            description: q.rsl_description
+                                          };
+                                        }
+                                      });
+                                      setEditQuestionsRsl(rslData);
+                                    } else {
+                                      alert('No existing questions found in database');
+                                    }
+                                  } catch (error) {
+                                    console.error('Error loading questions:', error);
+                                    alert('Failed to load questions from database');
+                                  }
+                                }}
+                                className="px-6 py-3 border border-purple-300 text-purple-700 rounded-xl hover:bg-purple-50 transition-colors font-medium"
+                              >
+                                Load from Database
+                              </button>
+                            </div>
                           </div>
                         ) : (
-                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                          <div className="space-y-4 max-h-[600px] overflow-y-auto">
                             {editQuestions.map((question, index) => (
-                              <div key={question.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                                <div className="flex justify-between items-start">
-                                  <div className="flex-1">
-                                    <div className="flex items-center mb-2">
-                                      <span className="bg-purple-100 text-purple-800 text-xs font-medium px-2 py-1 rounded">
+                              <div key={question.id} className="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                                {/* Question Header */}
+                                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 rounded-t-xl">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex items-center gap-3">
+                                      <span className="bg-gradient-to-r from-purple-600 to-purple-700 text-white text-sm font-bold px-3 py-1 rounded-lg">
                                         Q{index + 1}
                                       </span>
-                                      <span className="ml-2 bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded">
-                                        {question.question_type}
-                                      </span>
-                                      <span className="ml-2 text-xs text-gray-500">
-                                        {question.points} pts
-                                      </span>
-                                      {editQuestionsRsl[question.id]?.rsl_video_url && (
-                                        <span className="ml-2 bg-green-100 text-green-700 text-xs px-2 py-1 rounded flex items-center">
-                                          <VideoIcon size={12} className="mr-1" />
-                                          RSL
+                                      <div className="flex items-center gap-2">
+                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                          question.question_type === 'multiple_choice' ? 'bg-blue-100 text-blue-700' :
+                                          question.question_type === 'true_false' ? 'bg-green-100 text-green-700' :
+                                          question.question_type === 'short_answer' ? 'bg-yellow-100 text-yellow-700' :
+                                          'bg-gray-100 text-gray-700'
+                                        }`}>
+                                          {question.question_type?.replace('_', ' ') || 'Multiple Choice'}
                                         </span>
-                                      )}
-                                    </div>
-                                    <p className="text-sm text-gray-800 mb-2 line-clamp-2">
-                                      {question.question_text}
-                                    </p>
-                                    {question.question_type === 'mcq' && question.options && (
-                                      <div className="text-xs text-gray-600 mb-2">
-                                        Options: {Array.isArray(question.options) ? question.options.length : 'Invalid format'}
-                                      </div>
-                                    )}
-                                    
-                                    {/* RSL Video Section */}
-                                    <div className="mt-3 p-3 bg-white rounded border border-gray-200">
-                                      <div className="flex items-center justify-between mb-2">
-                                        <label className="text-xs font-medium text-gray-700">RSL Video URL</label>
+                                        <span className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded-full font-medium">
+                                          {question.points || 1} point{(question.points || 1) !== 1 ? 's' : ''}
+                                        </span>
+                                        <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                                          question.difficulty_level === 'easy' ? 'bg-green-100 text-green-700' :
+                                          question.difficulty_level === 'hard' ? 'bg-red-100 text-red-700' :
+                                          'bg-yellow-100 text-yellow-700'
+                                        }`}>
+                                          {question.difficulty_level || 'Medium'}
+                                        </span>
                                         {editQuestionsRsl[question.id]?.rsl_video_url && (
-                                          <a 
-                                            href={editQuestionsRsl[question.id].rsl_video_url}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
-                                          >
-                                            <EyeIcon size={12} className="mr-1" />
-                                            Preview
-                                          </a>
+                                          <span className="bg-purple-100 text-purple-700 text-xs px-2 py-1 rounded-full flex items-center font-medium">
+                                            <VideoIcon size={12} className="mr-1" />
+                                            RSL Ready
+                                          </span>
                                         )}
                                       </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => {
+                                          // TODO: Edit question functionality
+                                          alert('Edit question functionality to be implemented');
+                                        }}
+                                        className="p-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors"
+                                        title="Edit Question"
+                                      >
+                                        <EditIcon size={16} />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          setEditQuestions(prev => prev.filter(q => q.id !== question.id));
+                                          setEditQuestionsRsl(prev => {
+                                            const newRsl = { ...prev };
+                                            delete newRsl[question.id];
+                                            return newRsl;
+                                          });
+                                        }}
+                                        className="p-2 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                        title="Delete Question"
+                                      >
+                                        <TrashIcon size={16} />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Question Content */}
+                                <div className="p-6">
+                                  <div className="mb-4">
+                                    <h5 className="text-sm font-medium text-gray-700 mb-2">Question Text:</h5>
+                                    <p className="text-gray-900 bg-gray-50 p-3 rounded-lg border">
+                                      {question.question_text || 'No question text provided'}
+                                    </p>
+                                  </div>
+
+                                  {/* Question Options */}
+                                  {question.question_type === 'multiple_choice' && question.options && (
+                                    <div className="mb-4">
+                                      <h5 className="text-sm font-medium text-gray-700 mb-2">Answer Options:</h5>
+                                      <div className="space-y-2">
+                                        {Array.isArray(question.options) ? question.options.map((option: string, optIndex: number) => (
+                                          <div key={optIndex} className={`p-3 rounded-lg border flex items-center ${
+                                            question.correct_answer?.includes(optIndex) 
+                                              ? 'bg-green-50 border-green-200 text-green-800' 
+                                              : 'bg-gray-50 border-gray-200 text-gray-700'
+                                          }`}>
+                                            <span className={`text-xs font-bold px-2 py-1 rounded mr-3 ${
+                                              question.correct_answer?.includes(optIndex) 
+                                                ? 'bg-green-200 text-green-800' 
+                                                : 'bg-gray-200 text-gray-600'
+                                            }`}>
+                                              {String.fromCharCode(65 + optIndex)}
+                                            </span>
+                                            <span className="flex-1">{option || `Option ${optIndex + 1}`}</span>
+                                            {question.correct_answer?.includes(optIndex) && (
+                                              <CheckCircleIcon size={16} className="text-green-600 ml-2" />
+                                            )}
+                                          </div>
+                                        )) : (
+                                          <div className="text-red-600 text-sm bg-red-50 p-3 rounded-lg border border-red-200">
+                                            Invalid options format
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* True/False Questions */}
+                                  {question.question_type === 'true_false' && (
+                                    <div className="mb-4">
+                                      <h5 className="text-sm font-medium text-gray-700 mb-2">Correct Answer:</h5>
+                                      <div className="flex gap-3">
+                                        <div className={`px-4 py-2 rounded-lg border flex items-center ${
+                                          question.correct_answer?.[0] === 0 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-700'
+                                        }`}>
+                                          <span className="font-medium">True</span>
+                                          {question.correct_answer?.[0] === 0 && <CheckCircleIcon size={16} className="ml-2 text-green-600" />}
+                                        </div>
+                                        <div className={`px-4 py-2 rounded-lg border flex items-center ${
+                                          question.correct_answer?.[0] === 1 ? 'bg-green-50 border-green-200 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-700'
+                                        }`}>
+                                          <span className="font-medium">False</span>
+                                          {question.correct_answer?.[0] === 1 && <CheckCircleIcon size={16} className="ml-2 text-green-600" />}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Explanation */}
+                                  {question.explanation && (
+                                    <div className="mb-4">
+                                      <h5 className="text-sm font-medium text-gray-700 mb-2">Explanation:</h5>
+                                      <p className="text-gray-700 bg-blue-50 p-3 rounded-lg border border-blue-200">
+                                        {question.explanation}
+                                      </p>
+                                    </div>
+                                  )}
+
+                                  {/* Enhanced RSL Video Section */}
+                                  <div className="mt-4 p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200">
+                                    <div className="flex items-center justify-between mb-3">
+                                      <div className="flex items-center">
+                                        <VideoIcon size={16} className="text-purple-600 mr-2" />
+                                        <label className="text-sm font-semibold text-purple-900">RSL Video Support</label>
+                                      </div>
+                                      {editQuestionsRsl[question.id]?.rsl_video_url && (
+                                        <a 
+                                          href={editQuestionsRsl[question.id].rsl_video_url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-sm text-purple-600 hover:text-purple-800 flex items-center font-medium"
+                                        >
+                                          <EyeIcon size={14} className="mr-1" />
+                                          Preview
+                                        </a>
+                                      )}
+                                    </div>
+                                    <div className="space-y-3">
                                       <input
                                         type="url"
                                         placeholder="Enter YouTube URL for RSL video..."
@@ -1358,7 +1966,7 @@ export const AdminQuizManagement: React.FC = () => {
                                             }
                                           }));
                                         }}
-                                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                                        className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
                                       />
                                       <input
                                         type="text"
@@ -1373,25 +1981,9 @@ export const AdminQuizManagement: React.FC = () => {
                                             }
                                           }));
                                         }}
-                                        className="w-full text-xs px-2 py-1 mt-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                                        className="w-full px-3 py-2 border border-purple-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 text-sm"
                                       />
                                     </div>
-                                  </div>
-                                  <div className="flex space-x-2">
-                                    <button
-                                      onClick={() => {/* TODO: Edit question */}}
-                                      className="text-blue-600 hover:text-blue-800"
-                                      title="Edit Question"
-                                    >
-                                      <EditIcon size={16} />
-                                    </button>
-                                    <button
-                                      onClick={() => {/* TODO: Delete question */}}
-                                      className="text-red-600 hover:text-red-800"
-                                      title="Delete Question"
-                                    >
-                                      <TrashIcon size={16} />
-                                    </button>
                                   </div>
                                 </div>
                               </div>
@@ -1400,7 +1992,10 @@ export const AdminQuizManagement: React.FC = () => {
                         )}
                       </div>
                     )}
-                  </div> /* View Details */ : <div className="space-y-4">
+                  </div>
+                ) : (
+                  // View Details
+                  <div className="space-y-4">
                     {/* Quiz Icon */}
                     <div className="flex justify-center">
                       <div className="h-16 w-16 rounded-lg flex items-center justify-center bg-purple-100 text-purple-600">
@@ -1474,7 +2069,8 @@ export const AdminQuizManagement: React.FC = () => {
                         {new Date(selectedQuiz.updated_at).toLocaleDateString()}
                       </div>
                     </div>
-                  </div>}
+                  </div>
+                )}
               </div>
               {/* Modal Footer */}
               <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
@@ -1499,13 +2095,28 @@ export const AdminQuizManagement: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>}
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && <div className="fixed inset-0 z-50 overflow-y-auto">
+        </div>
+      )}
+      {/* Enhanced Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div 
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowDeleteModal(false);
+              setQuizToDelete(null);
+            }
+          }}
+        >
           <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
-            </div>
+            <div 
+              className="fixed inset-0 bg-gray-900 bg-opacity-50 transition-opacity backdrop-blur-sm" 
+              aria-hidden="true"
+              onClick={() => {
+                setShowDeleteModal(false);
+                setQuizToDelete(null);
+              }}
+            ></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">
               &#8203;
             </span>
@@ -1539,7 +2150,8 @@ export const AdminQuizManagement: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>}
+        </div>
+      )}
 
       {/* Create Quiz Modal */}
       {showCreateModal && (
@@ -2464,5 +3076,6 @@ export const AdminQuizManagement: React.FC = () => {
           </div>
         </div>
       )}
-    </DashboardLayout>;
+    </DashboardLayout>
+  );
 };
