@@ -17,6 +17,9 @@ interface Quiz {
   updated_at: string;
   is_published: boolean;
   created_at?: string;
+  rsl_video_url?: string;
+  rsl_description?: string;
+  rsl_enabled?: boolean;
 }
 export const AdminQuizManagement: React.FC = () => {
   const _ = useNavigate();
@@ -38,11 +41,15 @@ export const AdminQuizManagement: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editActiveTab, setEditActiveTab] = useState<'details' | 'questions'>('details');
   const [editQuestions, setEditQuestions] = useState<any[]>([]);
+  const [editQuestionsRsl, setEditQuestionsRsl] = useState<Record<string, {rsl_video_url?: string, description?: string}>>({});
   const [editFormData, setEditFormData] = useState({
     title: '',
     description: '',
     passing_score: 0,
-    is_published: false
+    is_published: false,
+    rsl_video_url: '',
+    rsl_description: '',
+    rsl_enabled: true
   });
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createFormData, setCreateFormData] = useState({
@@ -50,7 +57,10 @@ export const AdminQuizManagement: React.FC = () => {
     description: '',
     lesson_id: '',
     passing_score: 70,
-    is_published: false
+    is_published: false,
+    rsl_video_url: '',
+    rsl_description: '',
+    rsl_enabled: true
   });
   const [createQuestions, setCreateQuestions] = useState<{
     id: string;
@@ -409,7 +419,10 @@ export const AdminQuizManagement: React.FC = () => {
       title: quiz.title,
       description: quiz.description,
       passing_score: quiz.passing_score,
-      is_published: quiz.is_published
+      is_published: quiz.is_published,
+      rsl_video_url: quiz.rsl_video_url || '',
+      rsl_description: quiz.rsl_description || '',
+      rsl_enabled: quiz.rsl_enabled ?? true
     });
   };
   const handleEditClick = async () => {
@@ -427,8 +440,36 @@ export const AdminQuizManagement: React.FC = () => {
         console.error('Error fetching questions:', questionsError);
         // Continue anyway, just with empty questions
         setEditQuestions([]);
+        setEditQuestionsRsl({});
       } else {
         setEditQuestions(questionsData || []);
+        
+        // Fetch RSL content for questions
+        if (questionsData && questionsData.length > 0) {
+          const questionIds = questionsData.map(q => q.id);
+          const { data: rslData, error: rslError } = await supabase
+            .from('rsl_content')
+            .select('content_id, rsl_video_url, description')
+            .eq('content_type', 'question')
+            .in('content_id', questionIds);
+            
+          if (rslError) {
+            console.error('Error fetching RSL data:', rslError);
+            setEditQuestionsRsl({});
+          } else {
+            // Convert to object map
+            const rslMap: Record<string, {rsl_video_url?: string, description?: string}> = {};
+            (rslData || []).forEach(rsl => {
+              rslMap[rsl.content_id] = {
+                rsl_video_url: rsl.rsl_video_url,
+                description: rsl.description
+              };
+            });
+            setEditQuestionsRsl(rslMap);
+          }
+        } else {
+          setEditQuestionsRsl({});
+        }
       }
       
       setEditActiveTab('details');
@@ -444,6 +485,7 @@ export const AdminQuizManagement: React.FC = () => {
   const handleEditSubmit = async () => {
     if (!selectedQuiz) return;
     try {
+      // Update quiz details including RSL fields
       const {
         error
       } = await supabase.from('enhanced_quizzes').update({
@@ -451,28 +493,103 @@ export const AdminQuizManagement: React.FC = () => {
         description: editFormData.description,
         passing_score: editFormData.passing_score,
         is_published: editFormData.is_published,
+        rsl_video_url: editFormData.rsl_video_url.trim() || null,
+        rsl_description: editFormData.rsl_description.trim() || null,
+        rsl_enabled: editFormData.rsl_enabled,
         updated_at: new Date().toISOString()
       }).eq('id', selectedQuiz.id);
       if (error) throw error;
+
+      // Update RSL content for questions
+      for (const questionId in editQuestionsRsl) {
+        const rslData = editQuestionsRsl[questionId];
+        if (rslData.rsl_video_url && rslData.rsl_video_url.trim()) {
+          // Check if RSL content already exists for this question
+          const { data: existingRsl, error: checkError } = await supabase
+            .from('rsl_content')
+            .select('id')
+            .eq('content_type', 'question')
+            .eq('content_id', questionId)
+            .maybeSingle();
+
+          if (checkError) {
+            console.error('Error checking existing RSL:', checkError);
+            continue;
+          }
+
+          if (existingRsl) {
+            // Update existing RSL content
+            const { error: updateError } = await supabase
+              .from('rsl_content')
+              .update({
+                rsl_video_url: rslData.rsl_video_url.trim(),
+                description: rslData.description?.trim() || '',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', existingRsl.id);
+
+            if (updateError) {
+              console.error('Error updating RSL content:', updateError);
+            }
+          } else {
+            // Create new RSL content
+            const { error: insertError } = await supabase
+              .from('rsl_content')
+              .insert({
+                content_type: 'question',
+                content_id: questionId,
+                rsl_video_url: rslData.rsl_video_url.trim(),
+                description: rslData.description?.trim() || '',
+                sign_complexity: 'basic'
+              });
+
+            if (insertError) {
+              console.error('Error inserting RSL content:', insertError);
+            }
+          }
+        } else {
+          // Remove RSL content if URL is empty
+          const { error: deleteError } = await supabase
+            .from('rsl_content')
+            .delete()
+            .eq('content_type', 'question')
+            .eq('content_id', questionId);
+
+          if (deleteError) {
+            console.error('Error deleting RSL content:', deleteError);
+          }
+        }
+      }
+
       // Update local state
       setQuizzes(quizzes.map(quiz => quiz.id === selectedQuiz.id ? {
         ...quiz,
         title: editFormData.title,
         description: editFormData.description,
         passing_score: editFormData.passing_score,
-        is_published: editFormData.is_published
+        is_published: editFormData.is_published,
+        rsl_video_url: editFormData.rsl_video_url,
+        rsl_description: editFormData.rsl_description,
+        rsl_enabled: editFormData.rsl_enabled
       } : quiz));
+      
       // Update selected quiz
       setSelectedQuiz({
         ...selectedQuiz,
         title: editFormData.title,
         description: editFormData.description,
         passing_score: editFormData.passing_score,
-        is_published: editFormData.is_published
+        is_published: editFormData.is_published,
+        rsl_video_url: editFormData.rsl_video_url,
+        rsl_description: editFormData.rsl_description,
+        rsl_enabled: editFormData.rsl_enabled
       });
+      
       setIsEditing(false);
+      alert('Quiz and RSL content updated successfully!');
     } catch (error) {
       console.error('Error updating quiz:', error);
+      alert('Error updating quiz. Please try again.');
     }
   };
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -569,6 +686,9 @@ export const AdminQuizManagement: React.FC = () => {
         course_id: lessonData.course_id,
         passing_score: createFormData.passing_score,
         is_published: createFormData.is_published,
+        rsl_video_url: createFormData.rsl_video_url.trim() || null,
+        rsl_description: createFormData.rsl_description.trim() || null,
+        rsl_enabled: createFormData.rsl_enabled,
         quiz_type: 'assessment',
         max_attempts: 3,
         created_at: new Date().toISOString(),
@@ -630,7 +750,10 @@ export const AdminQuizManagement: React.FC = () => {
         description: '',
         lesson_id: '',
         passing_score: 70,
-        is_published: false
+        is_published: false,
+        rsl_video_url: '',
+        rsl_description: '',
+        rsl_enabled: true
       });
       setCreateQuestions([]);
       setShowCreateModal(false);
@@ -783,6 +906,9 @@ export const AdminQuizManagement: React.FC = () => {
                   Questions
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  RSL Video
+                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -795,7 +921,7 @@ export const AdminQuizManagement: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center">
+                  <td colSpan={7} className="px-6 py-4 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-purple-500"></div>
                       <span className="ml-2 text-gray-500">
@@ -804,7 +930,7 @@ export const AdminQuizManagement: React.FC = () => {
                     </div>
                   </td>
                 </tr> : quizzes.length === 0 ? <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center">
+                  <td colSpan={7} className="px-6 py-4 text-center">
                     <div className="text-center py-8">
                       <ClipboardListIcon size={48} className="mx-auto text-gray-400 mb-4" />
                       <h3 className="text-lg font-medium text-gray-800 mb-2">
@@ -844,6 +970,24 @@ export const AdminQuizManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {quiz.question_count} questions
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {quiz.rsl_enabled && quiz.rsl_video_url ? (
+                        <div className="flex items-center">
+                          <VideoIcon size={16} className="text-purple-600 mr-1" />
+                          <span className="text-xs text-purple-600 font-medium">RSL Ready</span>
+                        </div>
+                      ) : quiz.rsl_enabled ? (
+                        <div className="flex items-center">
+                          <VideoIcon size={16} className="text-yellow-600 mr-1" />
+                          <span className="text-xs text-yellow-600 font-medium">RSL Enabled</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center">
+                          <VideoIcon size={16} className="text-gray-400 mr-1" />
+                          <span className="text-xs text-gray-500">No RSL</span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${quiz.is_published ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
@@ -1041,6 +1185,93 @@ export const AdminQuizManagement: React.FC = () => {
                             Published
                           </label>
                         </div>
+
+                        {/* RSL Video Settings */}
+                        <div className="border-t border-gray-200 pt-4">
+                          <h4 className="text-md font-medium text-gray-900 mb-3 flex items-center">
+                            <svg className="w-5 h-5 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            RSL Video Settings
+                          </h4>
+                          
+                          <div className="flex items-center mb-3">
+                            <input 
+                              type="checkbox" 
+                              name="rsl_enabled" 
+                              id="rsl_enabled" 
+                              checked={editFormData.rsl_enabled} 
+                              onChange={handleCheckboxChange} 
+                              className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded" 
+                            />
+                            <label htmlFor="rsl_enabled" className="ml-2 block text-sm text-gray-900">
+                              Enable RSL video for this quiz
+                            </label>
+                          </div>
+
+                          {editFormData.rsl_enabled && (
+                            <>
+                              <div className="mb-3">
+                                <label htmlFor="rsl_video_url" className="block text-sm font-medium text-gray-700">
+                                  RSL Video URL
+                                </label>
+                                <input 
+                                  type="url" 
+                                  name="rsl_video_url" 
+                                  id="rsl_video_url" 
+                                  value={editFormData.rsl_video_url} 
+                                  onChange={handleInputChange} 
+                                  placeholder="https://youtu.be/example or https://youtube.com/watch?v=example"
+                                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" 
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                  YouTube URLs will be automatically converted to embeddable format
+                                </p>
+                              </div>
+                              
+                              <div className="mb-3">
+                                <label htmlFor="rsl_description" className="block text-sm font-medium text-gray-700">
+                                  RSL Video Description
+                                </label>
+                                <textarea 
+                                  name="rsl_description" 
+                                  id="rsl_description" 
+                                  rows={2} 
+                                  value={editFormData.rsl_description} 
+                                  onChange={handleInputChange} 
+                                  placeholder="Brief description of what this RSL video covers..."
+                                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 sm:text-sm" 
+                                />
+                                <p className="mt-1 text-xs text-gray-500">
+                                  This description will be shown to students before they watch the video
+                                </p>
+                              </div>
+
+                              {/* Video Preview */}
+                              {editFormData.rsl_video_url && (
+                                <div className="bg-gray-50 rounded-lg p-3">
+                                  <h5 className="text-sm font-medium text-gray-700 mb-2">Video Preview:</h5>
+                                  <div className="relative w-full max-w-sm bg-gray-100 rounded overflow-hidden" style={{ aspectRatio: '16 / 9' }}>
+                                    <iframe
+                                      className="w-full h-full"
+                                      src={editFormData.rsl_video_url.includes('embed/') 
+                                        ? editFormData.rsl_video_url 
+                                        : editFormData.rsl_video_url.includes('youtube.com/watch?v=')
+                                          ? editFormData.rsl_video_url.replace('watch?v=', 'embed/')
+                                          : editFormData.rsl_video_url.includes('youtu.be/')
+                                            ? `https://www.youtube.com/embed/${editFormData.rsl_video_url.split('youtu.be/')[1]?.split('?')[0]}`
+                                            : editFormData.rsl_video_url
+                                      }
+                                      title="RSL Video Preview"
+                                      frameBorder="0"
+                                      allowFullScreen
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div className="space-y-4">
@@ -1082,15 +1313,69 @@ export const AdminQuizManagement: React.FC = () => {
                                       <span className="ml-2 text-xs text-gray-500">
                                         {question.points} pts
                                       </span>
+                                      {editQuestionsRsl[question.id]?.rsl_video_url && (
+                                        <span className="ml-2 bg-green-100 text-green-700 text-xs px-2 py-1 rounded flex items-center">
+                                          <VideoIcon size={12} className="mr-1" />
+                                          RSL
+                                        </span>
+                                      )}
                                     </div>
                                     <p className="text-sm text-gray-800 mb-2 line-clamp-2">
                                       {question.question_text}
                                     </p>
                                     {question.question_type === 'mcq' && question.options && (
-                                      <div className="text-xs text-gray-600">
+                                      <div className="text-xs text-gray-600 mb-2">
                                         Options: {Array.isArray(question.options) ? question.options.length : 'Invalid format'}
                                       </div>
                                     )}
+                                    
+                                    {/* RSL Video Section */}
+                                    <div className="mt-3 p-3 bg-white rounded border border-gray-200">
+                                      <div className="flex items-center justify-between mb-2">
+                                        <label className="text-xs font-medium text-gray-700">RSL Video URL</label>
+                                        {editQuestionsRsl[question.id]?.rsl_video_url && (
+                                          <a 
+                                            href={editQuestionsRsl[question.id].rsl_video_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center"
+                                          >
+                                            <EyeIcon size={12} className="mr-1" />
+                                            Preview
+                                          </a>
+                                        )}
+                                      </div>
+                                      <input
+                                        type="url"
+                                        placeholder="Enter YouTube URL for RSL video..."
+                                        value={editQuestionsRsl[question.id]?.rsl_video_url || ''}
+                                        onChange={(e) => {
+                                          setEditQuestionsRsl(prev => ({
+                                            ...prev,
+                                            [question.id]: {
+                                              ...prev[question.id],
+                                              rsl_video_url: e.target.value
+                                            }
+                                          }));
+                                        }}
+                                        className="w-full text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                      <input
+                                        type="text"
+                                        placeholder="RSL video description (optional)..."
+                                        value={editQuestionsRsl[question.id]?.description || ''}
+                                        onChange={(e) => {
+                                          setEditQuestionsRsl(prev => ({
+                                            ...prev,
+                                            [question.id]: {
+                                              ...prev[question.id],
+                                              description: e.target.value
+                                            }
+                                          }));
+                                        }}
+                                        className="w-full text-xs px-2 py-1 mt-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500 focus:border-purple-500"
+                                      />
+                                    </div>
                                   </div>
                                   <div className="flex space-x-2">
                                     <button
@@ -1523,6 +1808,69 @@ export const AdminQuizManagement: React.FC = () => {
                       }`}
                     />
                   </div>
+
+                  {/* RSL Video Settings */}
+                  <div className={`border-t pt-4 ${rslSettings.high_contrast ? "border-white" : "border-gray-200"}`}>
+                    <h4 className={`${rslSettings.large_text ? "text-lg" : "text-base"} font-medium ${rslSettings.high_contrast ? "text-white" : "text-gray-900"} mb-3 flex items-center`}>
+                      <VideoIcon size={20} className={`${rslSettings.high_contrast ? "text-white" : "text-purple-600"} mr-2`} />
+                      RSL Video Settings
+                    </h4>
+                    
+                    <div className="flex items-center mb-3">
+                      <input 
+                        type="checkbox" 
+                        name="rsl_enabled" 
+                        id="create-rsl-enabled" 
+                        checked={createFormData.rsl_enabled} 
+                        onChange={handleCreateCheckboxChange} 
+                        className={`h-4 w-4 ${rslSettings.high_contrast ? "text-white" : "text-purple-600"} focus:ring-purple-500 border-gray-300 rounded`}
+                      />
+                      <label htmlFor="create-rsl-enabled" className={`ml-2 block ${rslSettings.large_text ? "text-base" : "text-sm"} ${rslSettings.high_contrast ? "text-white" : "text-gray-900"}`}>
+                        Enable RSL video for this quiz
+                      </label>
+                    </div>
+
+                    {createFormData.rsl_enabled && (
+                      <>
+                        <div className="mb-3">
+                          <label htmlFor="create-rsl-video-url" className={`block ${rslSettings.large_text ? "text-base" : "text-sm"} font-medium ${rslSettings.high_contrast ? "text-white" : "text-gray-700"}`}>
+                            RSL Video URL
+                          </label>
+                          <input 
+                            type="url" 
+                            name="rsl_video_url" 
+                            id="create-rsl-video-url" 
+                            value={createFormData.rsl_video_url} 
+                            onChange={handleCreateInputChange} 
+                            placeholder="https://youtu.be/example or https://youtube.com/watch?v=example"
+                            className={`mt-1 block w-full border ${rslSettings.high_contrast ? "border-white bg-gray-800 text-white" : "border-gray-300 bg-white"} rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${rslSettings.large_text ? "text-base" : "sm:text-sm"}`}
+                          />
+                          <p className={`mt-1 ${rslSettings.large_text ? "text-sm" : "text-xs"} ${rslSettings.high_contrast ? "text-gray-300" : "text-gray-500"}`}>
+                            YouTube URLs will be automatically converted to embeddable format
+                          </p>
+                        </div>
+                        
+                        <div className="mb-4">
+                          <label htmlFor="create-rsl-description" className={`block ${rslSettings.large_text ? "text-base" : "text-sm"} font-medium ${rslSettings.high_contrast ? "text-white" : "text-gray-700"}`}>
+                            RSL Video Description
+                          </label>
+                          <textarea 
+                            name="rsl_description" 
+                            id="create-rsl-description" 
+                            rows={2} 
+                            value={createFormData.rsl_description} 
+                            onChange={handleCreateInputChange} 
+                            placeholder="Brief description of what this RSL video covers..."
+                            className={`mt-1 block w-full border ${rslSettings.high_contrast ? "border-white bg-gray-800 text-white" : "border-gray-300 bg-white"} rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-purple-500 focus:border-purple-500 ${rslSettings.large_text ? "text-base" : "sm:text-sm"}`}
+                          />
+                          <p className={`mt-1 ${rslSettings.large_text ? "text-sm" : "text-xs"} ${rslSettings.high_contrast ? "text-gray-300" : "text-gray-500"}`}>
+                            This description will be shown to students before they watch the video
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
                   {/* Questions Section */}
                   <div className="border-t pt-4">
                     <div className="flex items-center justify-between mb-4">

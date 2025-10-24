@@ -60,6 +60,9 @@ interface Quiz {
   randomize_questions: boolean;
   show_answers: boolean;
   lesson_id?: string;
+  rsl_video_url?: string;
+  rsl_description?: string;
+  rsl_enabled?: boolean;
 }
 export const QuizAttempt: React.FC = () => {
   const {
@@ -164,7 +167,7 @@ export const QuizAttempt: React.FC = () => {
         if (quizError) throw quizError;
         setQuiz(quizData);
         
-        // Fetch RSL video - check both lesson-level and quiz-level RSL content
+        // Fetch RSL video - prioritize quiz-level RSL, then fallback to lesson-level
         let rslVideoUrl = null;
         let rslVideoSource = 'none';
         
@@ -172,11 +175,19 @@ export const QuizAttempt: React.FC = () => {
           quizId,
           lessonId: quizData.lesson_id,
           quizTitle: quizData.title,
+          quizRslEnabled: quizData.rsl_enabled,
+          quizRslVideoUrl: quizData.rsl_video_url,
           hasLessonId: !!quizData.lesson_id
         });
 
-        // First, try to get lesson-level RSL video
-        if (quizData.lesson_id) {
+        // First priority: Quiz-level RSL video (new feature)
+        if (quizData.rsl_enabled && quizData.rsl_video_url) {
+          rslVideoUrl = quizData.rsl_video_url;
+          rslVideoSource = 'quiz';
+          console.log('✅ [RSL DEBUG] Quiz-level RSL video found (highest priority):', rslVideoUrl);
+        }
+        // Second priority: Lesson-level RSL video (fallback)
+        else if (quizData.lesson_id) {
           const { data: lessonData, error: lessonError } = await supabase
             .from('enhanced_lessons')
             .select('rsl_video_url')
@@ -192,7 +203,7 @@ export const QuizAttempt: React.FC = () => {
           if (!lessonError && lessonData?.rsl_video_url) {
             rslVideoUrl = lessonData.rsl_video_url;
             rslVideoSource = 'lesson';
-            console.log('✅ [RSL DEBUG] Lesson RSL video found:', rslVideoUrl);
+            console.log('✅ [RSL DEBUG] Lesson RSL video found (fallback):', rslVideoUrl);
           }
         }
 
@@ -287,6 +298,8 @@ export const QuizAttempt: React.FC = () => {
                 console.log('❌ [RSL DEBUG] Failed to create sample RSL content:', insertError?.message);
               }
             }
+
+
           } catch (debugError) {
             console.log('⚠️ [RSL DEBUG] Error in debug RSL creation:', debugError);
           }
@@ -324,8 +337,48 @@ export const QuizAttempt: React.FC = () => {
           ascending: true
         });
         if (questionError) throw questionError;
-        // Randomize questions if needed
+        
+        // Fetch RSL videos for each question
         let processedQuestions = questionData || [];
+        if (processedQuestions.length > 0) {
+          console.log('🎬 [RSL DEBUG] Fetching RSL videos for questions...');
+          
+          // Get question IDs
+          const questionIds = processedQuestions.map(q => q.id);
+          
+          // Fetch RSL content for questions
+          const { data: questionRslData, error: questionRslError } = await supabase
+            .from('rsl_content')
+            .select('content_id, rsl_video_url, description')
+            .eq('content_type', 'question')
+            .in('content_id', questionIds);
+            
+          if (questionRslError) {
+            console.log('⚠️ [RSL DEBUG] Error fetching question RSL:', questionRslError.message);
+          } else {
+            console.log('🎬 [RSL DEBUG] Question RSL data:', questionRslData);
+            
+            // Create a map of question ID to RSL video URL
+            const questionRslMap: Record<string, string> = {};
+            (questionRslData || []).forEach(rsl => {
+              questionRslMap[rsl.content_id] = rsl.rsl_video_url;
+            });
+            
+            // Add RSL video URLs to questions
+            processedQuestions = processedQuestions.map(question => ({
+              ...question,
+              rsl_video_url: questionRslMap[question.id] || null
+            }));
+            
+            console.log('🎬 [RSL DEBUG] Questions with RSL videos:', 
+              processedQuestions.filter(q => q.rsl_video_url).length, 
+              'out of', 
+              processedQuestions.length
+            );
+          }
+        }
+        
+        // Randomize questions if needed (after adding RSL videos)
         if (quizData.randomize_questions) {
           processedQuestions = [...processedQuestions].sort(() => Math.random() - 0.5);
         }
@@ -334,9 +387,15 @@ export const QuizAttempt: React.FC = () => {
         if (import.meta.env.DEV) {
           console.log('Loaded questions:', processedQuestions.length);
           console.log('First question sample:', processedQuestions[0]);
+          console.log('Questions with RSL:', processedQuestions.filter(q => q.rsl_video_url).length);
         }
         
         setQuestions(processedQuestions);
+
+        // Log RSL video availability
+        console.log('🎬 [RSL DEBUG] Questions loaded with existing RSL videos:', 
+          processedQuestions.filter(q => q.rsl_video_url).length, 'out of', processedQuestions.length);
+
         // Set timer if applicable
         if (quizData.time_limit_minutes && !quizComplete) {
           const timeInSeconds = quizData.time_limit_minutes * 60;
@@ -475,6 +534,12 @@ export const QuizAttempt: React.FC = () => {
   };
 
   const handleWatchRSLVideo = () => {
+    // Prevent multiple opens
+    if (showRSLVideo) {
+      console.log('🎬 [RSL DEBUG] RSL video modal already open, ignoring click');
+      return;
+    }
+    
     console.log('🎬 [RSL DEBUG] handleWatchRSLVideo triggered', {
       lessonRslVideoUrl,
       hasVideoUrl: !!lessonRslVideoUrl,
@@ -951,11 +1016,21 @@ export const QuizAttempt: React.FC = () => {
                 <VideoIcon size={32} />
               </div>
               <h2 className="text-2xl font-bold text-gray-800 mb-4">
-                RSL Instructional Video
+                {quiz.rsl_video_url && quiz.rsl_enabled ? 'Quiz Introduction' : 'RSL Instructional Video'}
               </h2>
               <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
-                This quiz includes Rwandan Sign Language (RSL) support. Watch the instructional video below 
-                to better understand the concepts before taking the quiz.
+                {quiz.rsl_video_url && quiz.rsl_enabled ? (
+                  <>
+                    Welcome to <strong>{quiz.title}</strong>! Watch this introduction video to understand the quiz topics in Rwandan Sign Language (RSL).
+                    {quiz.rsl_description && (
+                      <span className="block mt-2 text-sm italic text-gray-500">
+                        {quiz.rsl_description}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  'This quiz includes Rwandan Sign Language (RSL) support. Watch the instructional video below to better understand the concepts before taking the quiz.'
+                )}
               </p>
             </div>
 
@@ -1287,11 +1362,16 @@ export const QuizAttempt: React.FC = () => {
               {lessonRslVideoUrl && (
                 <button
                   onClick={handleWatchRSLVideo}
-                  className="px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors flex items-center text-sm"
-                  title="Review lesson RSL video"
+                  disabled={showRSLVideo}
+                  className={`px-3 py-1 rounded-lg transition-colors flex items-center text-sm ${
+                    showRSLVideo 
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed' 
+                      : 'bg-purple-100 text-purple-700 hover:bg-purple-200'
+                  }`}
+                  title={showRSLVideo ? "RSL video is currently open" : "Review lesson RSL video"}
                 >
                   <VideoIcon size={14} className="mr-1" />
-                  Review RSL Video
+                  {showRSLVideo ? 'RSL Video Open' : 'Review RSL Video'}
                 </button>
               )}
             </div>
