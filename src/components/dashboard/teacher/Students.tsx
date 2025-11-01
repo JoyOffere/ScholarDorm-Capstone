@@ -93,12 +93,12 @@ export const TeacherStudents = () => {
 
       // Get quiz attempts for teacher's courses to identify students who took quizzes
       const { data: quizAttempts, error: quizError } = await supabase
-        .from('quiz_attempts')
+        .from('enhanced_quiz_attempts')
         .select(`
           user_id,
           percentage,
           completed_at,
-          quizzes!quiz_id(
+          enhanced_quizzes!quiz_id(
             course_id
           )
         `)
@@ -113,7 +113,7 @@ export const TeacherStudents = () => {
       const studentIdsWithQuizzes = [...new Set(
         quizAttempts
           ?.filter(attempt => {
-            const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+            const quiz = Array.isArray(attempt.enhanced_quizzes) ? attempt.enhanced_quizzes[0] : attempt.enhanced_quizzes;
             return courseIds.includes(quiz?.course_id);
           })
           .map(attempt => attempt.user_id) || []
@@ -156,7 +156,7 @@ export const TeacherStudents = () => {
 
       // Get quiz scores for students who have taken quizzes
       const { data: quizScores, error: quizScoreError } = await supabase
-        .from('quiz_attempts')
+        .from('enhanced_quiz_attempts')
         .select('user_id, percentage')
         .in('user_id', studentIdsWithQuizzes);
 
@@ -267,14 +267,14 @@ export const TeacherStudents = () => {
 
       // Get quiz attempts from enrolled students in teacher's courses only
       const { data: attempts, error: attemptsError } = await supabase
-        .from('quiz_attempts')
+        .from('enhanced_quiz_attempts')
         .select(`
           id,
           user_id,
           quiz_id,
           score,
           percentage,
-          passed,
+          is_passed,
           completed_at,
           time_spent_seconds,
           users!user_id(
@@ -283,7 +283,7 @@ export const TeacherStudents = () => {
             email,
             avatar_url
           ),
-          quizzes!quiz_id(
+          enhanced_quizzes!quiz_id(
             id,
             title,
             course_id,
@@ -305,12 +305,12 @@ export const TeacherStudents = () => {
       // Filter attempts for teacher's courses and transform data
       const filteredAttempts: StudentQuizAttempt[] = (attempts || [])
         .filter(attempt => {
-          const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+          const quiz = Array.isArray(attempt.enhanced_quizzes) ? attempt.enhanced_quizzes[0] : attempt.enhanced_quizzes;
           return courseIds.includes(quiz?.course_id);
         })
         .map(attempt => {
           const user = Array.isArray(attempt.users) ? attempt.users[0] : attempt.users;
-          const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+          const quiz = Array.isArray(attempt.enhanced_quizzes) ? attempt.enhanced_quizzes[0] : attempt.enhanced_quizzes;
           const course = Array.isArray(quiz?.courses) ? quiz.courses[0] : quiz?.courses;
 
           return {
@@ -325,7 +325,7 @@ export const TeacherStudents = () => {
             course_title: course.title,
             score: attempt.score,
             percentage: attempt.percentage,
-            passed: attempt.passed,
+            passed: attempt.is_passed,
             completed_at: attempt.completed_at,
             time_spent_seconds: attempt.time_spent_seconds
           };
