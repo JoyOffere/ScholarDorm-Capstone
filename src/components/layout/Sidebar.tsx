@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboardIcon, BookOpenIcon, AwardIcon, BellIcon, UserIcon, SettingsIcon, UsersIcon, FileTextIcon, BarChartIcon, LogOutIcon, MenuIcon, XIcon, BookIcon, GraduationCapIcon, PencilIcon, ClipboardListIcon, HomeIcon, GamepadIcon, StarIcon, TrophyIcon, ChevronRightIcon, ActivityIcon, MegaphoneIcon, LayersIcon, LineChartIcon, FileIcon } from 'lucide-react';
+import { LayoutDashboardIcon, BookOpenIcon, AwardIcon, BellIcon, UserIcon, SettingsIcon, UsersIcon, FileTextIcon, BarChartIcon, LogOutIcon, MenuIcon, XIcon, BookIcon, GraduationCapIcon, PencilIcon, ClipboardListIcon, HomeIcon, GamepadIcon, StarIcon, TrophyIcon, ChevronRightIcon, ActivityIcon, MegaphoneIcon, LayersIcon, LineChartIcon, FileIcon, VideoIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 interface SidebarProps {
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
   isOpen: boolean;
   toggleSidebar: () => void;
 }
@@ -178,7 +178,70 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: <SettingsIcon size={20} />
     }]
   }];
-  const navGroups = role === 'admin' ? adminNavGroups : studentNavGroups;
+
+  const teacherNavGroups: NavGroup[] = [{
+    title: 'Main',
+    items: [{
+      name: 'Dashboard',
+      to: '/teacher',
+      icon: <HomeIcon size={20} />
+    }, {
+      name: 'My Courses',
+      to: '/teacher/courses',
+      icon: <BookOpenIcon size={20} />
+    }, {
+      name: 'Students',
+      to: '/teacher/students',
+      icon: <UsersIcon size={20} />
+    }]
+  }, {
+    title: 'Teaching Tools',
+    items: [{
+      name: 'Quizzes',
+      to: '/teacher/quizzes',
+      icon: <ClipboardListIcon size={20} />
+    }, {
+      name: 'Content Library',
+      to: '/teacher/content',
+      icon: <BookIcon size={20} />
+    }, {
+      name: 'RSL Videos',
+      to: '/teacher/rsl-content',
+      icon: <VideoIcon size={20} />
+    }, {
+      name: 'Progress Reports',
+      to: '/teacher/progress',
+      icon: <BarChartIcon size={20} />
+    }]
+  }, {
+    title: 'Communication',
+    items: [{
+      name: 'Messages',
+      to: '/teacher/messages',
+      icon: <FileTextIcon size={20} />
+    }, {
+      name: 'Announcements',
+      to: '/teacher/announcements',
+      icon: <MegaphoneIcon size={20} />
+    }, {
+      name: 'Notifications',
+      to: '/teacher/notifications',
+      icon: <BellIcon size={20} />
+    }]
+  }, {
+    title: 'Account',
+    items: [{
+      name: 'Profile',
+      to: '/teacher/profile',
+      icon: <UserIcon size={20} />
+    }, {
+      name: 'Settings',
+      to: '/teacher/settings',
+      icon: <SettingsIcon size={20} />
+    }]
+  }];
+
+  const navGroups = role === 'admin' ? adminNavGroups : role === 'teacher' ? teacherNavGroups : studentNavGroups;
   const auth = useAuth();
   const navigate = useNavigate();
   const handleSignOut = async () => {

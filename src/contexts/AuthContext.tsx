@@ -11,7 +11,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 type User = {
   id: string;
   email?: string | null;
-  role?: 'student' | 'admin';
+  role?: 'student' | 'admin' | 'teacher';
 };
 
 type AuthContextType = {
@@ -242,7 +242,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
                   .eq('id', currentSession.user.id)
                   .single();
 
-                const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : cachedSession.user.role;
+                const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' | 'teacher' : cachedSession.user.role;
 
                 if (userRole !== cachedSession.user.role) {
                   const updatedUser: User = {
@@ -291,7 +291,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
                 .eq('id', currentSession.user.id)
                 .single();
 
-              const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' : 'student';
+              const userRole = (!roleError && roleData) ? roleData.role as 'student' | 'admin' | 'teacher' : 'student';
 
               const userData: User = {
                 id: currentSession.user.id,
@@ -401,7 +401,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
       try {
           if (newSession?.user) {
           // Preserve existing role if available, otherwise fetch from database
-          let userRole: 'student' | 'admin' = user?.role || 'student';
+          let userRole: 'student' | 'admin' | 'teacher' = user?.role || 'student';
           
           if (event === 'SIGNED_IN') {
             try {
@@ -412,7 +412,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
                 .single();
               
               if (!roleError && roleData) {
-                userRole = roleData.role as 'student' | 'admin';
+                userRole = roleData.role as 'student' | 'admin' | 'teacher';
               } else if (roleError?.code === 'PGRST116') {
                 // User doesn't exist in our users table - create them in background
                 console.log('AuthContext: Creating new user record for:', newSession.user.email);
@@ -508,7 +508,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
         console.log('AuthContext: Session refreshed successfully');
         
         // Preserve existing user role if available
-        let userRole: 'student' | 'admin' = user?.role || 'student';
+        let userRole: 'student' | 'admin' | 'teacher' = user?.role || 'student';
         
         const userData: User = {
           id: refreshedSession.user.id,
@@ -650,7 +650,7 @@ export const AuthProvider: React.FC<{ children: ReactNode; onInitFallback?: () =
         .eq('id', oauthUser.id)
         .single();
 
-      let userRole: 'student' | 'admin' = 'student';
+      let userRole: 'student' | 'admin' | 'teacher' = 'student';
 
       if (userError && userError.code !== 'PGRST116') {
         logger.error('Error checking user existence', userError);

@@ -34,6 +34,15 @@ import { AdminPosts } from './components/dashboard/admin/Posts';
 import { AdminContent } from './components/dashboard/admin/Content';
 import { AdminAnalytics } from './components/dashboard/admin/Analytics';
 import { RSLManagement } from './components/dashboard/admin/RSLManagement';
+import { 
+  TeacherDashboard,
+  TeacherStudents,
+  TeacherCourses,
+  TeacherQuizzes,
+  TeacherContent,
+  TeacherRSLContent,
+  TeacherProgress
+} from './components/dashboard/teacher';
 import { TermsOfService } from './components/legal/TermsOfService';
 import { PrivacyPolicy } from './components/legal/PrivacyPolicy';
 import { RSLPage } from './components/accessibility/RSLPage';
@@ -97,7 +106,7 @@ const AppContent: React.FC = () => {
     requiredRole
   }: {
     children: React.ReactNode;
-    requiredRole: 'student' | 'admin'
+    requiredRole: 'student' | 'admin' | 'teacher'
   }) => {
     // Don't redirect while loading - show loading spinner
     if (loading) {
@@ -119,7 +128,7 @@ const AppContent: React.FC = () => {
 
     // If role doesn't match, redirect to their dashboard
     if (user.role && user.role !== requiredRole) {
-      const redirectPath = user.role === 'admin' ? '/admin' : '/dashboard';
+      const redirectPath = user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/dashboard';
       return <Navigate to={redirectPath} replace />;
     }
 
@@ -152,7 +161,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/dashboard'} replace />
             ) : (
               <Landing />
             )
@@ -169,7 +178,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/dashboard'} replace />
             ) : (
               <LoginPage />
             )
@@ -186,7 +195,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/dashboard'} replace />
             ) : (
               <SignupPage />
             )
@@ -205,7 +214,7 @@ const AppContent: React.FC = () => {
                 </div>
               </div>
             ) : session && user?.role ? (
-              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+              <Navigate to={user.role === 'admin' ? '/admin' : user.role === 'teacher' ? '/teacher' : '/dashboard'} replace />
             ) : (
               <ForgotPasswordPage />
             )
@@ -484,6 +493,64 @@ const AppContent: React.FC = () => {
           element={
             <RequireRole requiredRole="admin">
               <RSLManagement />
+            </RequireRole>
+          } 
+        />
+
+        {/* Teacher routes */}
+        <Route 
+          path="/teacher" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherDashboard />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/students" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherStudents />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/courses" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherCourses />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/quizzes" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherQuizzes />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/content" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherContent />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/rsl-content" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherRSLContent />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/progress" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherProgress />
             </RequireRole>
           } 
         />

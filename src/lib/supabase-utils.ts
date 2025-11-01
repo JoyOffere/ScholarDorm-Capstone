@@ -8,7 +8,7 @@ export interface UserProfile {
   streak_count: number;
   longest_streak: number;
   last_login: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
   accessibility_preferences?: {
     high_contrast: boolean;
     large_text: boolean;

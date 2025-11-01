@@ -6,7 +6,7 @@ export interface CachedSession {
   user: {
     id: string;
     email?: string;
-    role?: 'student' | 'admin';
+    role?: 'student' | 'admin' | 'teacher';
   };
   timestamp: number;
   dashboardData?: any;

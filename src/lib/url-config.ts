@@ -37,12 +37,17 @@ export const getOAuthRedirectUrl = (): string => {
 };
 
 // Get dashboard redirect URL
-export const getDashboardUrl = (userRole?: 'student' | 'admin'): string => {
+export const getDashboardUrl = (userRole?: 'student' | 'admin' | 'teacher'): string => {
   const siteUrl = getSiteUrl();
   
   if (userRole === 'admin') {
     const adminPath = import.meta.env.VITE_ADMIN_REDIRECT_URL || '/admin';
     return `${siteUrl}${adminPath}`;
+  }
+  
+  if (userRole === 'teacher') {
+    const teacherPath = import.meta.env.VITE_TEACHER_REDIRECT_URL || '/teacher';
+    return `${siteUrl}${teacherPath}`;
   }
   
   const dashboardPath = import.meta.env.VITE_LOGIN_REDIRECT_URL || '/dashboard';

@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import { SessionStatusIndicator } from '../common/SessionManager';
 interface NavbarProps {
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
   toggleSidebar: () => void;
   userProfile?: {
     name: string;

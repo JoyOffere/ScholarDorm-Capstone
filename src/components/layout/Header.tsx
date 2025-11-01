@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeftIcon } from 'lucide-react';
 interface HeaderProps {
   title: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
 }
 export const Header: React.FC<HeaderProps> = ({
   title,

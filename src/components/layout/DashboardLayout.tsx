@@ -8,7 +8,7 @@ import { supabase } from '../../lib/supabase';
 interface DashboardLayoutProps {
   children: React.ReactNode;
   title: string;
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
 }
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,

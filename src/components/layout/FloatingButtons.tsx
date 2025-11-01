@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusIcon, BookOpenIcon, ClipboardListIcon, GamepadIcon, HomeIcon, XIcon } from 'lucide-react';
 interface FloatingButtonsProps {
-  role: 'student' | 'admin';
+  role: 'student' | 'admin' | 'teacher';
   onAction: (action: string) => void;
 }
 export const FloatingButtons: React.FC<FloatingButtonsProps> = ({
