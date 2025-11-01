@@ -53,6 +53,7 @@ export const AdminTeacherAssignments: React.FC = () => {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [coursesLoading, setCoursesLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -151,16 +152,29 @@ export const AdminTeacherAssignments: React.FC = () => {
   };
 
   const fetchCourses = async () => {
+    setCoursesLoading(true);
     try {
       const { data, error } = await supabase
         .from('courses')
-        .select('id, title, description, level, category, created_at, is_active')
+        .select('id, title, description, difficulty_level, subject, created_at, is_active')
+        .eq('is_active', true)
         .order('title');
 
       if (error) throw error;
-      setCourses(data || []);
+      console.log('Fetched courses:', data);
+      
+      // Map the database columns to our interface
+      const mappedCourses = (data || []).map(course => ({
+        ...course,
+        level: course.difficulty_level,
+        category: course.subject
+      }));
+      
+      setCourses(mappedCourses);
     } catch (error) {
       console.error('Error fetching courses:', error);
+    } finally {
+      setCoursesLoading(false);
     }
   };
 
@@ -524,19 +538,44 @@ export const AdminTeacherAssignments: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Select Course
+                    {coursesLoading && (
+                      <span className="ml-2 text-xs text-blue-600">Loading courses...</span>
+                    )}
                   </label>
                   <select
                     value={newAssignment.course_id}
                     onChange={(e) => setNewAssignment(prev => ({ ...prev, course_id: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={!newAssignment.teacher_id || coursesLoading}
                   >
-                    <option value="">Choose a course...</option>
-                    {courses.map((course) => (
-                      <option key={course.id} value={course.id}>
-                        {course.title} ({course.level})
-                      </option>
-                    ))}
+                    <option value="">
+                      {coursesLoading ? "Loading courses..." : 
+                       !newAssignment.teacher_id ? "Select a teacher first..." : 
+                       "Choose a course..."}
+                    </option>
+                    {!coursesLoading && (newAssignment.teacher_id ? 
+                      getAvailableCoursesForTeacher(newAssignment.teacher_id).map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title} ({course.level})
+                        </option>
+                      )) :
+                      courses.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.title} ({course.level})
+                        </option>
+                      ))
+                    )}
                   </select>
+                  {!coursesLoading && newAssignment.teacher_id && getAvailableCoursesForTeacher(newAssignment.teacher_id).length === 0 && (
+                    <p className="text-sm text-orange-600 mt-1">
+                      This teacher is already assigned to all available courses.
+                    </p>
+                  )}
+                  {courses.length === 0 && !coursesLoading && (
+                    <p className="text-sm text-red-600 mt-1">
+                      No courses available. Please create courses first.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex space-x-3 pt-4">
