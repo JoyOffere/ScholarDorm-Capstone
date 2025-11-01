@@ -47,6 +47,7 @@ import {
   TeacherSettings,
   TeacherProgress
 } from './components/dashboard/teacher';
+import { TeacherCourseAnalytics } from './components/dashboard/teacher/CourseAnalytics';
 import { TeacherQuizCreate } from './components/dashboard/teacher/QuizCreate';
 import { TeacherContentCreate } from './components/dashboard/teacher/ContentCreate';
 import { TeacherQuizReview } from './components/dashboard/teacher/QuizReview';
@@ -659,6 +660,14 @@ const AppContent: React.FC = () => {
           element={
             <RequireRole requiredRole="teacher">
               <TeacherSettings />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/courses/:courseId/analytics" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <TeacherCourseAnalytics />
             </RequireRole>
           } 
         />
