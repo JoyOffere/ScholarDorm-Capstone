@@ -28,6 +28,7 @@ import { AdminSettings } from './components/dashboard/admin/Settings';
 import { AdminProfile } from './components/dashboard/admin/Profile';
 import { AdminNotifications } from './components/dashboard/admin/Notifications';
 import { AdminAnnouncements } from './components/dashboard/admin/Announcements';
+import { AdminTeacherAssignments } from './components/dashboard/admin/TeacherAssignments';
 import { AnnouncementForm } from './components/dashboard/admin/AnnouncementForm';
 import { AdminGames } from './components/dashboard/admin/Games';
 import { AdminPosts } from './components/dashboard/admin/Posts';
@@ -479,6 +480,14 @@ const AppContent: React.FC = () => {
           element={
             <RequireRole requiredRole="admin">
               <AdminAnnouncements />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/admin/teacher-assignments" 
+          element={
+            <RequireRole requiredRole="admin">
+              <AdminTeacherAssignments />
             </RequireRole>
           } 
         />

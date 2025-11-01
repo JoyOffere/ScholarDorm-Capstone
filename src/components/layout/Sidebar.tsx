@@ -122,6 +122,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'Users',
       to: '/admin/users',
       icon: <UsersIcon size={20} />
+    }, {
+      name: 'Teacher Assignments',
+      to: '/admin/teacher-assignments',
+      icon: <UserIcon size={20} />
     }]
   },
   {
