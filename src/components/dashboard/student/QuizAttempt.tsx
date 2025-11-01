@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import * as React from 'react';
+const { useEffect, useState, useRef, useCallback } = React;
 import { useParams, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';

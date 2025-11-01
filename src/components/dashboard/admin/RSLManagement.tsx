@@ -1,4 +1,5 @@
-import React, { useState, useEffect, Fragment } from 'react';
+import * as React from 'react';
+const { useState, useEffect, Fragment } = React;
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { supabase } from '../../../lib/supabase';
 import { RSLService, RSLVideo, RSLSign, RSLCategory, getCategoryDisplayName, getCategoryIcon } from '../../../lib/rsl-service';

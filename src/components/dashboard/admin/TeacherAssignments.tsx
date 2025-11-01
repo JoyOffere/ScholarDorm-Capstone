@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import * as React from 'react';
+const { useEffect, useState } = React;
 import { motion } from 'framer-motion';
 import {
   User, Search, Filter, Plus, Edit3, Trash2, Users, 

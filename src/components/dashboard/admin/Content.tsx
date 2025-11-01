@@ -1,4 +1,5 @@
-import React, { useEffect, useState, Fragment } from 'react';
+import * as React from 'react';
+const { useEffect, useState, Fragment } = React;
 import { Link, useNavigate } from 'react-router-dom';
 import { DashboardLayout } from '../../layout/DashboardLayout';
 import { SearchIcon, FilterIcon, PlusIcon, TrashIcon, EditIcon, EyeIcon, CheckCircleIcon, XCircleIcon, RefreshCwIcon, AlertCircleIcon, LayersIcon, FolderIcon, FileIcon, ImageIcon, FileTextIcon, VideoIcon, LinkIcon, DownloadIcon, UploadIcon, MoreHorizontalIcon, XIcon, BookOpenIcon, ClockIcon, UsersIcon, BarChart3Icon, PlayCircleIcon, GraduationCapIcon, ChevronRightIcon, ChevronDownIcon, FolderOpenIcon, FileQuestionIcon, Settings } from 'lucide-react';

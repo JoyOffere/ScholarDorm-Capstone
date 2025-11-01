@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import * as React from 'react';
+const { useEffect, useState } = React;
 import { Link, useLocation } from 'react-router-dom';
 import { LayoutDashboardIcon, BookOpenIcon, AwardIcon, BellIcon, UserIcon, SettingsIcon, UsersIcon, FileTextIcon, BarChartIcon, LogOutIcon, MenuIcon, XIcon, BookIcon, GraduationCapIcon, PencilIcon, ClipboardListIcon, HomeIcon, GamepadIcon, StarIcon, TrophyIcon, ChevronRightIcon, ActivityIcon, MegaphoneIcon, LayersIcon, LineChartIcon, FileIcon, VideoIcon } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
