@@ -22,6 +22,9 @@ interface Quiz {
   user_attempts?: number;
   highest_score?: number;
   status?: 'completed' | 'in_progress' | 'not_started';
+  total_time_spent?: number; // in minutes
+  average_time_per_attempt?: number; // in minutes
+  fastest_completion?: number; // in minutes
   rsl_video_url?: string;
   rsl_description?: string;
   rsl_enabled?: boolean;
@@ -86,30 +89,41 @@ export const StudentQuizzes: React.FC = () => {
         map[course.id] = course.title;
         return map;
       }, {});
-      // Get user's quiz attempts
+      // Get user's quiz attempts with time tracking
       const {
         data: attemptsData,
         error: attemptsError
-      } = await supabase.from('enhanced_quiz_attempts').select('quiz_id, score, completed_at').eq('user_id', userId);
+      } = await supabase.from('enhanced_quiz_attempts').select('quiz_id, score, completed_at, time_taken_minutes, time_spent_seconds, attempt_number').eq('user_id', userId);
       if (attemptsError) throw attemptsError;
-      // Process quiz attempts
+      // Process quiz attempts with time tracking
       const attemptsByQuizId: Record<string, {
         count: number;
         highestScore: number;
         completed: boolean;
+        totalTimeSpent: number;
+        times: number[];
       }> = {};
       attemptsData?.forEach(attempt => {
         if (!attemptsByQuizId[attempt.quiz_id]) {
           attemptsByQuizId[attempt.quiz_id] = {
             count: 0,
             highestScore: 0,
-            completed: false
+            completed: false,
+            totalTimeSpent: 0,
+            times: []
           };
         }
         attemptsByQuizId[attempt.quiz_id].count++;
         attemptsByQuizId[attempt.quiz_id].highestScore = Math.max(attemptsByQuizId[attempt.quiz_id].highestScore, attempt.score);
         if (attempt.completed_at) {
           attemptsByQuizId[attempt.quiz_id].completed = true;
+        }
+        
+        // Track time data
+        const timeSpent = attempt.time_taken_minutes || (attempt.time_spent_seconds ? Math.ceil(attempt.time_spent_seconds / 60) : 0);
+        if (timeSpent > 0) {
+          attemptsByQuizId[attempt.quiz_id].totalTimeSpent += timeSpent;
+          attemptsByQuizId[attempt.quiz_id].times.push(timeSpent);
         }
       });
       
@@ -163,6 +177,9 @@ export const StudentQuizzes: React.FC = () => {
           user_attempts: attempts?.count ?? 0,
           highest_score: attempts?.highestScore ?? 0,
           status,
+          total_time_spent: attempts?.totalTimeSpent ?? 0,
+          average_time_per_attempt: attempts && attempts.count > 0 ? Math.round(attempts.totalTimeSpent / attempts.count) : 0,
+          fastest_completion: attempts && attempts.times.length > 0 ? Math.min(...attempts.times) : 0,
           has_question_rsl: !!quizQuestionRslMap[quiz.id],
           lesson_rsl_video_url: quiz.lesson_id ? lessonRslMap[quiz.lesson_id] : null
         };
@@ -187,6 +204,15 @@ export const StudentQuizzes: React.FC = () => {
     } else {
       navigate(`/quiz/${quizId}`);
     }
+  };
+
+  // Helper function to format time in minutes
+  const formatTime = (minutes: number): string => {
+    if (minutes === 0) return '0m';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}h ${mins}m`;
   };
 
   // Helper function to convert YouTube URLs to embed format
@@ -339,13 +365,31 @@ export const StudentQuizzes: React.FC = () => {
                     return null;
                   })()}
                 </div>
-                {quiz.status === 'completed' ? <div className="flex justify-between items-center">
-                    <div>
-                      <div className="text-sm font-medium">
-                        Your best score:
+                {quiz.status === 'completed' ? <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-sm font-medium">
+                          Your best score:
+                        </div>
+                        <div className={`text-lg font-bold ${(quiz.highest_score ?? 0) >= quiz.passing_score ? 'text-green-600' : 'text-red-600'}`}>
+                          {quiz.highest_score ?? 0}%
+                        </div>
                       </div>
-                      <div className={`text-lg font-bold ${(quiz.highest_score ?? 0) >= quiz.passing_score ? 'text-green-600' : 'text-red-600'}`}>
-                        {quiz.highest_score ?? 0}%
+                      <div className="text-right">
+                        <div className="text-sm font-medium">Time Stats:</div>
+                        <div className="text-xs text-gray-600">
+                          Total: {formatTime(quiz.total_time_spent || 0)}
+                        </div>
+                        {quiz.average_time_per_attempt > 0 && (
+                          <div className="text-xs text-gray-600">
+                            Avg: {formatTime(quiz.average_time_per_attempt)}
+                          </div>
+                        )}
+                        {quiz.fastest_completion > 0 && (
+                          <div className="text-xs text-green-600">
+                            Best: {formatTime(quiz.fastest_completion)}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="flex space-x-2">
@@ -376,10 +420,17 @@ export const StudentQuizzes: React.FC = () => {
                       </button>
                     </div>
                   </div> : <div className="flex justify-between items-center">
-                    {(quiz.user_attempts ?? 0) > 0 && <div className="text-sm text-gray-600">
-                        Attempts: {quiz.user_attempts ?? 0}
-                        {quiz.max_attempts ? `/${quiz.max_attempts}` : ''}
-                      </div>}
+                    <div className="space-y-1">
+                      {(quiz.user_attempts ?? 0) > 0 && <div className="text-sm text-gray-600">
+                          Attempts: {quiz.user_attempts ?? 0}
+                          {quiz.max_attempts ? `/${quiz.max_attempts}` : ''}
+                        </div>}
+                      {quiz.total_time_spent > 0 && (
+                        <div className="text-xs text-gray-500">
+                          Time spent: {formatTime(quiz.total_time_spent)}
+                        </div>
+                      )}
+                    </div>
                     <div className="flex space-x-2">
                       {(() => {
                         const rslInfo = getRslVideoInfo(quiz);

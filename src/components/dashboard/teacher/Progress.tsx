@@ -24,6 +24,9 @@ interface StudentProgress {
   overallProgress: number;
   averageScore: number;
   timeSpent: number; // in minutes
+  quizTimeSpent: number; // in minutes
+  averageQuizTime: number; // in minutes
+  totalQuizAttempts: number;
   lastActive: string;
   strengths: string[];
   improvements: string[];
@@ -38,6 +41,9 @@ interface CourseProgress {
   totalLessons: number;
   averageScore: number;
   timeSpent: number;
+  quizTimeSpent: number;
+  averageQuizTime: number;
+  totalQuizAttempts: number;
   lastAccessed: string;
   status: 'not_started' | 'in_progress' | 'completed';
 }
@@ -155,14 +161,18 @@ export const TeacherProgress = () => {
         studentProgress = progressData || [];
       }
 
-      // 5. Get quiz attempts for average scores
+      // 5. Get enhanced quiz attempts for average scores and time tracking
       const { data: quizAttempts, error: quizError } = await supabase
-        .from('quiz_attempts')
+        .from('enhanced_quiz_attempts')
         .select(`
           user_id,
           quiz_id,
           percentage,
           completed_at,
+          time_taken_minutes,
+          time_spent_seconds,
+          question_time_tracking,
+          attempt_number,
           quizzes!inner(id, course_id, title)
         `)
         .in('quizzes.course_id', courseIds);
@@ -187,6 +197,9 @@ export const TeacherProgress = () => {
             overallProgress: 0,
             averageScore: 0,
             timeSpent: 0,
+            quizTimeSpent: 0,
+            averageQuizTime: 0,
+            totalQuizAttempts: 0,
             lastActive: enrollment.enrollment_date,
             strengths: [],
             improvements: [],
@@ -232,16 +245,28 @@ export const TeacherProgress = () => {
 
           totalProgress += courseProgress;
 
-        // Calculate average score for this course
+        // Calculate average score and time tracking for this course
         const courseQuizAttempts = studentQuizAttempts.filter(attempt =>
           (attempt.quizzes as any)?.course_id === courseId
-        );          let courseAverageScore = 0;
-          if (courseQuizAttempts.length > 0) {
-            const totalScores = courseQuizAttempts.reduce((sum, attempt) => sum + (attempt.percentage || 0), 0);
-            courseAverageScore = Math.round(totalScores / courseQuizAttempts.length);
-            totalScore += courseAverageScore;
-            scoreCount++;
-          }
+        );
+        
+        let courseAverageScore = 0;
+        let courseQuizTimeSpent = 0;
+        let courseAverageQuizTime = 0;
+        
+        if (courseQuizAttempts.length > 0) {
+          const totalScores = courseQuizAttempts.reduce((sum, attempt) => sum + (attempt.percentage || 0), 0);
+          courseAverageScore = Math.round(totalScores / courseQuizAttempts.length);
+          totalScore += courseAverageScore;
+          scoreCount++;
+          
+          // Calculate time spent on quizzes for this course
+          const totalQuizTimeMinutes = courseQuizAttempts.reduce((sum, attempt) => 
+            sum + (attempt.time_taken_minutes || attempt.time_spent_seconds ? Math.ceil((attempt.time_spent_seconds || 0) / 60) : 0), 0
+          );
+          courseQuizTimeSpent = totalQuizTimeMinutes;
+          courseAverageQuizTime = Math.round(totalQuizTimeMinutes / courseQuizAttempts.length);
+        }
 
           // Calculate time spent (convert seconds to minutes)
           const courseTimeSpent = completedLessons.reduce((sum, progress) => sum + Math.round((progress.time_spent_seconds || 0) / 60), 0);
@@ -267,6 +292,9 @@ export const TeacherProgress = () => {
             totalLessons: courseLessons.length,
             averageScore: courseAverageScore,
             timeSpent: Math.round(courseTimeSpent / 60), // Convert to minutes
+            quizTimeSpent: courseQuizTimeSpent,
+            averageQuizTime: courseAverageQuizTime,
+            totalQuizAttempts: courseQuizAttempts.length,
             lastAccessed: completedLessons.length > 0
               ? completedLessons[completedLessons.length - 1].completion_date || enrollment.enrollment_date
               : enrollment.enrollment_date,
@@ -281,6 +309,14 @@ export const TeacherProgress = () => {
         student.averageScore = scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0;
         student.timeSpent = Math.round(totalTimeSpent / 60); // Convert to minutes
         student.completedCourses = completedCourses;
+
+        // Calculate overall quiz time tracking
+        const totalQuizTimeSpent = student.courseProgress.reduce((sum, course) => sum + course.quizTimeSpent, 0);
+        const totalQuizAttempts = student.courseProgress.reduce((sum, course) => sum + course.totalQuizAttempts, 0);
+        
+        student.quizTimeSpent = totalQuizTimeSpent;
+        student.averageQuizTime = totalQuizAttempts > 0 ? Math.round(totalQuizTimeSpent / totalQuizAttempts) : 0;
+        student.totalQuizAttempts = totalQuizAttempts;
 
         // Set last active to the most recent lesson completion or quiz attempt
         const allActivity = [
@@ -751,6 +787,17 @@ export const TeacherProgress = () => {
                     <div className="text-center">
                       <p className="text-xs text-gray-500 mb-1">Time Spent</p>
                       <p className="text-lg font-semibold text-gray-900">{formatTimeSpent(student.timeSpent)}</p>
+                      {student.quizTimeSpent > 0 && (
+                        <p className="text-xs text-blue-600">Quiz: {formatTimeSpent(student.quizTimeSpent)}</p>
+                      )}
+                    </div>
+                    
+                    <div className="text-center">
+                      <p className="text-xs text-gray-500 mb-1">Quiz Stats</p>
+                      <p className="text-lg font-semibold text-gray-900">{student.totalQuizAttempts}</p>
+                      {student.averageQuizTime > 0 && (
+                        <p className="text-xs text-gray-600">Avg: {formatTimeSpent(student.averageQuizTime)}</p>
+                      )}
                     </div>
                     
                     <div className="text-center">
@@ -848,7 +895,7 @@ export const TeacherProgress = () => {
                             style={{ width: `${course.progress}%` }}
                           ></div>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
                           <div>
                             <p className="text-gray-500">Lessons</p>
                             <p className="font-medium">{course.lessonsCompleted}/{course.totalLessons}</p>
@@ -858,8 +905,15 @@ export const TeacherProgress = () => {
                             <p className="font-medium">{course.averageScore}%</p>
                           </div>
                           <div>
-                            <p className="text-gray-500">Time</p>
+                            <p className="text-gray-500">Study Time</p>
                             <p className="font-medium">{formatTimeSpent(course.timeSpent)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Quiz Time</p>
+                            <p className="font-medium">{formatTimeSpent(course.quizTimeSpent)}</p>
+                            {course.totalQuizAttempts > 0 && (
+                              <p className="text-xs text-gray-400">{course.totalQuizAttempts} attempts</p>
+                            )}
                           </div>
                           <div>
                             <p className="text-gray-500">Last Access</p>

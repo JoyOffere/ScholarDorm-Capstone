@@ -91,7 +91,41 @@ export const TeacherStudents = () => {
         return;
       }
 
-      // Get students enrolled in teacher's courses
+      // Get quiz attempts for teacher's courses to identify students who took quizzes
+      const { data: quizAttempts, error: quizError } = await supabase
+        .from('quiz_attempts')
+        .select(`
+          user_id,
+          percentage,
+          completed_at,
+          quizzes!quiz_id(
+            course_id
+          )
+        `)
+        .not('completed_at', 'is', null);
+
+      if (quizError) {
+        console.error('Error fetching quiz attempts:', quizError);
+        return;
+      }
+
+      // Filter quiz attempts for teacher's courses and get unique student IDs
+      const studentIdsWithQuizzes = [...new Set(
+        quizAttempts
+          ?.filter(attempt => {
+            const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+            return courseIds.includes(quiz?.course_id);
+          })
+          .map(attempt => attempt.user_id) || []
+      )];
+
+      if (studentIdsWithQuizzes.length === 0) {
+        setStudents([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Get students enrolled in teacher's courses who have taken quizzes
       const { data: enrollments, error: enrollmentError } = await supabase
         .from('user_courses')
         .select(`
@@ -112,22 +146,22 @@ export const TeacherStudents = () => {
             title
           )
         `)
-        .in('course_id', courseIds);
+        .in('course_id', courseIds)
+        .in('user_id', studentIdsWithQuizzes);
 
       if (enrollmentError) {
         console.error('Error fetching student enrollments:', enrollmentError);
         return;
       }
 
-      // Get quiz scores for students
-      const studentIds = [...new Set(enrollments?.map(e => e.user_id) || [])];
-      const { data: quizScores, error: quizError } = await supabase
+      // Get quiz scores for students who have taken quizzes
+      const { data: quizScores, error: quizScoreError } = await supabase
         .from('quiz_attempts')
         .select('user_id, percentage')
-        .in('user_id', studentIds);
+        .in('user_id', studentIdsWithQuizzes);
 
-      if (quizError) {
-        console.error('Error fetching quiz scores:', quizError);
+      if (quizScoreError) {
+        console.error('Error fetching quiz scores:', quizScoreError);
       }
 
       // Group data by student
@@ -217,7 +251,21 @@ export const TeacherStudents = () => {
         return;
       }
 
-      // Get quiz attempts from students in teacher's courses
+      // Get students enrolled in teacher's courses first
+      const { data: enrolledStudents } = await supabase
+        .from('user_courses')
+        .select('user_id')
+        .in('course_id', courseIds);
+
+      const enrolledStudentIds = [...new Set(enrolledStudents?.map(e => e.user_id) || [])];
+
+      if (enrolledStudentIds.length === 0) {
+        setQuizAttempts([]);
+        setAttemptsLoading(false);
+        return;
+      }
+
+      // Get quiz attempts from enrolled students in teacher's courses only
       const { data: attempts, error: attemptsError } = await supabase
         .from('quiz_attempts')
         .select(`
@@ -245,6 +293,7 @@ export const TeacherStudents = () => {
             )
           )
         `)
+        .in('user_id', enrolledStudentIds)
         .order('completed_at', { ascending: false });
 
       if (attemptsError) {

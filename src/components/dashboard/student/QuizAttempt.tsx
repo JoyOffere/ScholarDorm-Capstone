@@ -90,6 +90,13 @@ export const QuizAttempt: React.FC = () => {
   const [percentage, setPercentage] = useState<number | null>(null);
   const [passed, setPassed] = useState<boolean | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  
+  // Enhanced time tracking
+  const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
+  const [questionStartTime, setQuestionStartTime] = useState<number | null>(null);
+  const [questionTimes, setQuestionTimes] = useState<Record<string, number>>({});
+  const [totalTimeSpent, setTotalTimeSpent] = useState<number>(0);
+  const [elapsedTime, setElapsedTime] = useState<number>(0);
   const [showRSLVideo, setShowRSLVideo] = useState(false);
   const [rslVideoWatched, setRslVideoWatched] = useState(false);
   const [canStartQuiz, setCanStartQuiz] = useState(false);
@@ -307,6 +314,11 @@ export const QuizAttempt: React.FC = () => {
           const timeInSeconds = quizData.time_limit_minutes * 60;
           setTimeRemaining(timeInSeconds);
         }
+
+        // Start quiz timing
+        const startTime = Date.now();
+        setQuizStartTime(startTime);
+        setQuestionStartTime(startTime);
       } catch (error) {
         console.error('Error fetching quiz data:', error);
       } finally {
@@ -355,6 +367,26 @@ export const QuizAttempt: React.FC = () => {
         .eq('user_id', userId)
         .eq('quiz_id', quizId);
 
+      // Calculate final time tracking data
+      const currentTime = Date.now();
+      let finalQuestionTimes = { ...questionTimes };
+      let finalTotalTimeSpent = totalTimeSpent;
+
+      // Track time for the last question if still on it
+      if (questionStartTime && questions[currentQuestionIndex]) {
+        const timeSpentOnLastQuestion = currentTime - questionStartTime;
+        const currentQuestionId = questions[currentQuestionIndex].id;
+        finalQuestionTimes[currentQuestionId] = (finalQuestionTimes[currentQuestionId] || 0) + timeSpentOnLastQuestion;
+        finalTotalTimeSpent += timeSpentOnLastQuestion;
+      }
+
+      // Calculate total time from start to finish (in minutes)
+      const totalQuizTimeMinutes = quizStartTime ? Math.ceil((currentTime - quizStartTime) / (1000 * 60)) : null;
+      
+      // Calculate time taken - prefer actual tracking over time limit calculation
+      const actualTimeTakenMinutes = finalTotalTimeSpent ? Math.ceil(finalTotalTimeSpent / (1000 * 60)) : 
+                                   (quiz.time_limit_minutes ? Math.ceil((quiz.time_limit_minutes * 60 - (timeRemaining || 0)) / 60) : totalQuizTimeMinutes);
+
       // Save attempt to database
       const {
         data: attemptData,
@@ -368,9 +400,11 @@ export const QuizAttempt: React.FC = () => {
         percentage: scorePercentage,
         is_passed: hasPassed,
         answers,
-        time_taken_minutes: quiz.time_limit_minutes ? Math.ceil((quiz.time_limit_minutes * 60 - (timeRemaining || 0)) / 60) : null,
-        started_at: new Date().toISOString(),
-        completed_at: new Date().toISOString()
+        time_taken_minutes: actualTimeTakenMinutes,
+        time_spent_seconds: finalTotalTimeSpent ? Math.ceil(finalTotalTimeSpent / 1000) : (totalQuizTimeMinutes ? totalQuizTimeMinutes * 60 : null),
+        question_time_tracking: finalQuestionTimes,
+        started_at: quizStartTime ? new Date(quizStartTime).toISOString() : new Date().toISOString(),
+        completed_at: new Date(currentTime).toISOString()
       }).select();
       if (attemptError) throw attemptError;
       // Update state with results
@@ -388,6 +422,17 @@ export const QuizAttempt: React.FC = () => {
       setSubmitting(false);
     }
   }, [quiz, userId, submitting, questions, answers, timeRemaining, quizId]);
+
+  // Effect to update elapsed time every second
+  useEffect(() => {
+    if (!quizStartTime || quizComplete) return;
+    
+    const elapsedTimer = setInterval(() => {
+      setElapsedTime(Date.now() - quizStartTime);
+    }, 1000);
+
+    return () => clearInterval(elapsedTimer);
+  }, [quizStartTime, quizComplete]);
 
   useEffect(() => {
     if (timeRemaining === null) return;
@@ -438,12 +483,30 @@ export const QuizAttempt: React.FC = () => {
   };
   const navigateToQuestion = (index: number) => {
     if (index >= 0 && index < questions.length) {
+      // Track time spent on current question before navigating
+      if (questionStartTime && questions[currentQuestionIndex]) {
+        const currentTime = Date.now();
+        const timeSpentOnQuestion = currentTime - questionStartTime;
+        const currentQuestionId = questions[currentQuestionIndex].id;
+        
+        setQuestionTimes(prev => ({
+          ...prev,
+          [currentQuestionId]: (prev[currentQuestionId] || 0) + timeSpentOnQuestion
+        }));
+        
+        // Update total time spent
+        setTotalTimeSpent(prev => prev + timeSpentOnQuestion);
+      }
+      
       // First close any existing RSL modals
       setShowQuestionRSL(false);
       setCurrentQuestionRSL(null);
       
       // Update question index
       setCurrentQuestionIndex(index);
+      
+      // Set new question start time
+      setQuestionStartTime(Date.now());
       
       // IMMEDIATELY check for RSL video and show it
       const question = questions[index];
@@ -1325,12 +1388,20 @@ export const QuizAttempt: React.FC = () => {
               <h1 className="text-2xl font-bold text-gray-800">{quiz.title}</h1>
               {quiz.description && <p className="text-gray-600 mt-1">{quiz.description}</p>}
             </div>
-            {timeRemaining !== null && <div className="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg flex items-center">
-              <ClockIcon size={18} className="mr-2" />
-              <span className="font-mono font-medium">
-                {formatTime(timeRemaining)}
-              </span>
-            </div>}
+            <div className="flex items-center space-x-3">
+              {timeRemaining !== null && <div className="bg-blue-50 text-blue-800 px-3 py-2 rounded-lg flex items-center">
+                <ClockIcon size={18} className="mr-2" />
+                <span className="font-mono font-medium">
+                  {formatTime(timeRemaining)}
+                </span>
+              </div>}
+              {quizStartTime && <div className="bg-green-50 text-green-800 px-3 py-2 rounded-lg flex items-center">
+                <ClockIcon size={18} className="mr-2" />
+                <span className="font-mono font-medium text-xs">
+                  Elapsed: {Math.floor(elapsedTime / (1000 * 60))}:{String(Math.floor((elapsedTime % (1000 * 60)) / 1000)).padStart(2, '0')}
+                </span>
+              </div>}
+            </div>
           </div>
         </div>
         {/* Instructions */}
