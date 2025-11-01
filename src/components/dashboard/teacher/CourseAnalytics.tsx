@@ -124,11 +124,11 @@ export const TeacherCourseAnalytics = () => {
 
       // Fetch quiz data
       const { data: quizData } = await supabase
-        .from('quizzes')
+        .from('enhanced_quizzes')
         .select(`
           id,
           title,
-          quiz_attempts (
+          enhanced_quiz_attempts (
             id,
             score,
             time_spent_seconds,
@@ -179,7 +179,7 @@ export const TeacherCourseAnalytics = () => {
       // Process student progress
       const studentProgressData: StudentProgress[] = enrolledStudents.map(uc => {
         const userQuizAttempts = quizData?.flatMap(q => 
-          q.quiz_attempts?.filter(qa => qa.user_id === uc.user_id) || []
+          q.enhanced_quiz_attempts?.filter(qa => qa.user_id === uc.user_id) || []
         ) || [];
         
         const quizScores = userQuizAttempts.map(qa => qa.score);
@@ -223,7 +223,7 @@ export const TeacherCourseAnalytics = () => {
 
       // Process quiz analytics
       const processedQuizAnalytics: QuizAnalytics[] = quizData?.map(quiz => {
-        const attempts = quiz.quiz_attempts || [];
+        const attempts = quiz.enhanced_quiz_attempts || [];
         const totalAttempts = attempts.length;
         const averageScore = totalAttempts > 0 
           ? attempts.reduce((acc, attempt) => acc + attempt.score, 0) / totalAttempts

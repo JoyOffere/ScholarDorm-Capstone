@@ -137,7 +137,7 @@ export const TeacherQuizReview: React.FC = () => {
 
       // Fetch quiz attempts for teacher's courses
       const { data: attemptsData, error: attemptsError } = await supabase
-        .from('quiz_attempts')
+        .from('enhanced_quiz_attempts')
         .select(`
           id,
           quiz_id,
@@ -145,10 +145,12 @@ export const TeacherQuizReview: React.FC = () => {
           score,
           percentage,
           time_spent_seconds,
+          question_time_tracking,
+          attempt_number,
           completed_at,
-          passed,
+          is_passed,
           users!user_id(id, full_name, email, avatar_url),
-          quizzes!quiz_id(
+          enhanced_quizzes!quiz_id(
             id,
             title,
             lesson_id,
@@ -164,7 +166,7 @@ export const TeacherQuizReview: React.FC = () => {
       // Filter manually since we can't easily filter by nested course_id in the query
       const filteredAttempts = attemptsData?.filter(attempt => {
         try {
-          const quizData = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+          const quizData = Array.isArray(attempt.enhanced_quizzes) ? attempt.enhanced_quizzes[0] : attempt.enhanced_quizzes;
           const lessonData = Array.isArray(quizData?.lessons) ? quizData.lessons[0] : quizData?.lessons;
           return courseIds.includes(lessonData?.course_id);
         } catch (error) {
@@ -190,7 +192,7 @@ export const TeacherQuizReview: React.FC = () => {
             max_score: 100, // Assuming 100 points max
             completion_time: attempt.time_spent_seconds || 0,
             completed_at: attempt.completed_at,
-            status: attempt.passed ? 'completed' : 'completed', // Simplify status
+            status: attempt.is_passed ? 'completed' : 'completed', // Simplify status
             student: (() => {
               const userData = Array.isArray(attempt.users) ? attempt.users[0] : attempt.users;
               return {
@@ -201,7 +203,7 @@ export const TeacherQuizReview: React.FC = () => {
               };
             })(),
             quiz: (() => {
-              const quizData = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+              const quizData = Array.isArray(attempt.enhanced_quizzes) ? attempt.enhanced_quizzes[0] : attempt.enhanced_quizzes;
               const lessonData = Array.isArray(quizData?.lessons) ? quizData.lessons[0] : quizData?.lessons;
               const courseData = Array.isArray(lessonData?.courses) ? lessonData.courses[0] : lessonData?.courses;
               return {

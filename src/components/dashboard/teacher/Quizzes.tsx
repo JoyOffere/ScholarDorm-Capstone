@@ -128,28 +128,28 @@ export const TeacherQuizzes = () => {
 
       // Get quiz attempts for quizzes in the teacher's assigned courses
       const { data: attempts, error: attemptsError } = await supabase
-        .from('quiz_attempts')
+        .from('enhanced_quiz_attempts')
         .select(`
           id,
           user_id,
           quiz_id,
           score,
           percentage,
-          passed,
+          is_passed,
           answers,
           time_spent_seconds,
-          feedback,
+          question_time_tracking,
+          attempt_number,
           started_at,
           completed_at,
-          reviewed_at,
-          reviewed_by,
+          feedback_provided,
           users!user_id(
             id,
             full_name,
             email,
             avatar_url
           ),
-          quizzes!quiz_id(
+          enhanced_quizzes!quiz_id(
             id,
             title,
             courses!course_id(
@@ -158,14 +158,14 @@ export const TeacherQuizzes = () => {
             )
           )
         `)
-        .in('quizzes.course_id', courseIds)
+        .in('enhanced_quizzes.course_id', courseIds)
         .order('completed_at', { ascending: false });
 
       if (attemptsError) throw attemptsError;
 
       // Transform the data into StudentAttempt format
       const studentAttempts: StudentAttempt[] = (attempts || []).map(attempt => {
-        const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+        const quiz = Array.isArray(attempt.enhanced_quizzes) ? attempt.enhanced_quizzes[0] : attempt.enhanced_quizzes;
         const course = Array.isArray(quiz?.courses) ? quiz.courses[0] : quiz?.courses;
         
         return {
@@ -181,14 +181,14 @@ export const TeacherQuizzes = () => {
             quiz_id: attempt.quiz_id,
             score: attempt.score,
             percentage: attempt.percentage,
-            passed: attempt.passed,
+            passed: attempt.is_passed,
             answers: attempt.answers,
             time_spent_seconds: attempt.time_spent_seconds,
-            feedback: attempt.feedback,
+            question_time_tracking: attempt.question_time_tracking,
+            attempt_number: attempt.attempt_number,
             started_at: attempt.started_at,
             completed_at: attempt.completed_at,
-            reviewed_at: attempt.reviewed_at,
-            reviewed_by: attempt.reviewed_by
+            feedback_provided: attempt.feedback_provided
           }
         };
       });

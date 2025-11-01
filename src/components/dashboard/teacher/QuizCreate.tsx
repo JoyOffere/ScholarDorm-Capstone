@@ -187,7 +187,7 @@ export const TeacherQuizCreate: React.FC = () => {
     try {
       // Create quiz
       const { data: quiz, error: quizError } = await supabase
-        .from('quizzes')
+        .from('enhanced_quizzes')
         .insert({
           title: formData.title,
           description: formData.description,
@@ -215,7 +215,7 @@ export const TeacherQuizCreate: React.FC = () => {
       }));
 
       const { error: questionsError } = await supabase
-        .from('quiz_questions')
+        .from('enhanced_quiz_questions')
         .insert(questionsToInsert);
 
       if (questionsError) throw questionsError;

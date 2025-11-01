@@ -146,7 +146,7 @@ export const TeacherProfile: React.FC = () => {
               const lessonIds = lessons.map(l => l.id);
               
               const { count: quizzesCountResult, error: quizzesError } = await supabase
-                .from('quizzes')
+                .from('enhanced_quizzes')
                 .select('id', { count: 'exact' })
                 .in('lesson_id', lessonIds);
 

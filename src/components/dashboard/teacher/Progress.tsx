@@ -173,9 +173,9 @@ export const TeacherProgress = () => {
           time_spent_seconds,
           question_time_tracking,
           attempt_number,
-          quizzes!inner(id, course_id, title)
+          enhanced_quizzes!inner(id, course_id, title)
         `)
-        .in('quizzes.course_id', courseIds);
+        .in('enhanced_quizzes.course_id', courseIds);
 
       if (quizError) throw quizError;
 
@@ -247,7 +247,7 @@ export const TeacherProgress = () => {
 
         // Calculate average score and time tracking for this course
         const courseQuizAttempts = studentQuizAttempts.filter(attempt =>
-          (attempt.quizzes as any)?.course_id === courseId
+          (attempt.enhanced_quizzes as any)?.course_id === courseId
         );
         
         let courseAverageScore = 0;
