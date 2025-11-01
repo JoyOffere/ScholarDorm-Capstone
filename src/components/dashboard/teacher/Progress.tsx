@@ -82,191 +82,277 @@ export const TeacherProgress = () => {
   const fetchProgressData = async () => {
     try {
       if (!user) return;
+      setIsLoading(true);
 
-      const teacherService = new TeacherService(user.id);
-      
-      // Mock data for demonstration
-      const mockStudents: StudentProgress[] = [
-        {
-          id: '1',
-          name: 'Aline Uwimana',
-          email: 'aline.uwimana@example.com',
-          avatar: 'https://images.unsplash.com/photo-1494790108755-2616b6bd8db0?w=150',
-          totalCourses: 3,
-          completedCourses: 1,
-          currentCourse: 'Basic Mathematics with RSL',
-          overallProgress: 78,
-          averageScore: 85,
-          timeSpent: 2340, // minutes
-          lastActive: '2024-01-16T10:30:00Z',
-          strengths: ['Problem Solving', 'RSL Comprehension', 'Mathematical Reasoning'],
-          improvements: ['Speed', 'Complex Operations'],
-          courseProgress: [
-            {
-              courseId: '1',
-              courseName: 'Basic Mathematics with RSL',
-              progress: 85,
-              lessonsCompleted: 10,
-              totalLessons: 12,
-              averageScore: 88,
-              timeSpent: 1440,
-              lastAccessed: '2024-01-16T10:30:00Z',
-              status: 'in_progress'
-            },
-            {
-              courseId: '2',
-              courseName: 'Advanced Algebra Concepts',
-              progress: 60,
-              lessonsCompleted: 9,
-              totalLessons: 15,
-              averageScore: 82,
-              timeSpent: 720,
-              lastAccessed: '2024-01-14T14:20:00Z',
-              status: 'in_progress'
-            },
-            {
-              courseId: '3',
-              courseName: 'Geometry Fundamentals',
-              progress: 100,
-              lessonsCompleted: 10,
-              totalLessons: 10,
-              averageScore: 92,
-              timeSpent: 180,
-              lastAccessed: '2024-01-10T16:45:00Z',
-              status: 'completed'
-            }
-          ]
-        },
-        {
-          id: '2',
-          name: 'Jean Baptiste Nzeyimana',
-          email: 'jean.nzeyimana@example.com',
-          avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-          totalCourses: 2,
-          completedCourses: 0,
-          currentCourse: 'Basic Mathematics with RSL',
-          overallProgress: 45,
-          averageScore: 72,
-          timeSpent: 1890,
-          lastActive: '2024-01-15T08:15:00Z',
-          strengths: ['Consistency', 'RSL Skills'],
-          improvements: ['Mathematical Concepts', 'Problem Analysis'],
-          courseProgress: [
-            {
-              courseId: '1',
-              courseName: 'Basic Mathematics with RSL',
-              progress: 50,
-              lessonsCompleted: 6,
-              totalLessons: 12,
-              averageScore: 75,
-              timeSpent: 1200,
-              lastAccessed: '2024-01-15T08:15:00Z',
-              status: 'in_progress'
-            },
-            {
-              courseId: '3',
-              courseName: 'Geometry Fundamentals',
-              progress: 40,
-              lessonsCompleted: 4,
-              totalLessons: 10,
-              averageScore: 68,
-              timeSpent: 690,
-              lastAccessed: '2024-01-13T11:30:00Z',
-              status: 'in_progress'
-            }
-          ]
-        },
-        {
-          id: '3',
-          name: 'Marie Claire Mukamana',
-          email: 'marie.mukamana@example.com',
-          avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150',
-          totalCourses: 3,
-          completedCourses: 2,
-          currentCourse: 'Advanced Algebra Concepts',
-          overallProgress: 92,
-          averageScore: 94,
-          timeSpent: 3120,
-          lastActive: '2024-01-16T15:45:00Z',
-          strengths: ['Excellence', 'Quick Learning', 'Advanced Concepts', 'RSL Fluency'],
-          improvements: ['Time Management'],
-          courseProgress: [
-            {
-              courseId: '1',
-              courseName: 'Basic Mathematics with RSL',
-              progress: 100,
-              lessonsCompleted: 12,
-              totalLessons: 12,
-              averageScore: 96,
-              timeSpent: 960,
-              lastAccessed: '2024-01-05T12:00:00Z',
-              status: 'completed'
-            },
-            {
-              courseId: '2',
-              courseName: 'Advanced Algebra Concepts',
-              progress: 87,
-              lessonsCompleted: 13,
-              totalLessons: 15,
-              averageScore: 93,
-              timeSpent: 1440,
-              lastAccessed: '2024-01-16T15:45:00Z',
-              status: 'in_progress'
-            },
-            {
-              courseId: '3',
-              courseName: 'Geometry Fundamentals',
-              progress: 100,
-              lessonsCompleted: 10,
-              totalLessons: 10,
-              averageScore: 94,
-              timeSpent: 720,
-              lastAccessed: '2024-01-08T14:30:00Z',
-              status: 'completed'
-            }
-          ]
+      // Fetch real data from Supabase
+      // 1. Get teacher's courses
+      const { data: teacherCourses, error: coursesError } = await supabase
+        .from('teacher_course_assignments')
+        .select(`
+          course_id,
+          courses!inner(id, title, description)
+        `)
+        .eq('teacher_id', user.id);
+
+      if (coursesError) throw coursesError;
+
+      const courseIds = teacherCourses?.map(tc => tc.course_id) || [];
+
+      // Early return if no courses assigned
+      if (courseIds.length === 0) {
+        setStudents([]);
+        setFilteredStudents([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // 2. Get students enrolled in teacher's courses
+      const { data: enrollments, error: enrollmentsError } = await supabase
+        .from('course_enrollments')
+        .select(`
+          user_id,
+          course_id,
+          enrollment_date,
+          progress_percentage,
+          users!inner(id, full_name, email, avatar_url, role)
+        `)
+        .in('course_id', courseIds)
+        .eq('users.role', 'student');
+
+      if (enrollmentsError) throw enrollmentsError;
+
+      // 3. Get course sections and lessons for progress calculation
+      const { data: courseSections, error: sectionsError } = await supabase
+        .from('course_sections')
+        .select(`
+          id,
+          course_id,
+          title,
+          lessons(id, title, is_published)
+        `)
+        .in('course_id', courseIds);
+
+      if (sectionsError) throw sectionsError;
+
+      // 4. Get student lesson progress
+      const userIds = enrollments?.map(e => e.user_id) || [];
+      let studentProgress: any[] = [];
+      if (userIds.length > 0) {
+        const { data: progressData, error: progressError } = await supabase
+          .from('user_progress')
+          .select(`
+            user_id,
+            lesson_id,
+            completed,
+            time_spent_seconds,
+            completion_date,
+            lessons!inner(id, course_id, title)
+          `)
+          .in('user_id', userIds);
+
+        if (progressError) throw progressError;
+        studentProgress = progressData || [];
+      }
+
+      // 5. Get quiz attempts for average scores
+      const { data: quizAttempts, error: quizError } = await supabase
+        .from('quiz_attempts')
+        .select(`
+          user_id,
+          quiz_id,
+          percentage,
+          completed_at,
+          quizzes!inner(id, course_id, title)
+        `)
+        .in('quizzes.course_id', courseIds);
+
+      if (quizError) throw quizError;
+
+      // Process the data to create StudentProgress objects
+      const studentsMap = new Map<string, StudentProgress>();
+
+      // Initialize students
+      enrollments?.forEach(enrollment => {
+        const student = enrollment.users as any;
+        if (!studentsMap.has(student.id)) {
+          studentsMap.set(student.id, {
+            id: student.id,
+            name: student.full_name || student.email?.split('@')[0] || 'Unknown',
+            email: student.email || '',
+            avatar: student.avatar_url,
+            totalCourses: 0,
+            completedCourses: 0,
+            currentCourse: '',
+            overallProgress: 0,
+            averageScore: 0,
+            timeSpent: 0,
+            lastActive: enrollment.enrollment_date,
+            strengths: [],
+            improvements: [],
+            courseProgress: []
+          });
         }
-      ];
+      });
 
-      const mockCourseAnalytics: CourseAnalytics[] = [
-        {
-          courseId: '1',
-          courseName: 'Basic Mathematics with RSL',
-          enrolledStudents: 25,
-          averageProgress: 67,
-          averageScore: 83,
-          completionRate: 40,
-          engagement: 'high'
-        },
-        {
-          courseId: '2',
-          courseName: 'Advanced Algebra Concepts',
-          enrolledStudents: 18,
-          averageProgress: 74,
-          averageScore: 87,
-          completionRate: 28,
-          engagement: 'medium'
-        },
-        {
-          courseId: '3',
-          courseName: 'Geometry Fundamentals',
-          enrolledStudents: 22,
-          averageProgress: 85,
-          averageScore: 89,
-          completionRate: 68,
-          engagement: 'high'
+      // Calculate progress for each student
+      studentsMap.forEach((student, studentId) => {
+        const studentEnrollments = enrollments?.filter(e => e.user_id === studentId) || [];
+        const studentLessonProgress = studentProgress?.filter(p => p.user_id === studentId) || [];
+        const studentQuizAttempts = quizAttempts?.filter(q => q.user_id === studentId) || [];
+
+        student.totalCourses = studentEnrollments.length;
+        
+        let totalProgress = 0;
+        let totalScore = 0;
+        let totalTimeSpent = 0;
+        let scoreCount = 0;
+        let completedCourses = 0;
+
+        // Process each course enrollment
+        studentEnrollments.forEach(enrollment => {
+          const courseId = enrollment.course_id;
+          const courseName = teacherCourses?.find(tc => tc.course_id === courseId)?.courses?.[0]?.title || 'Unknown Course';
+          
+          // Get lessons for this course
+          const courseLessons = courseSections
+            ?.filter(section => section.course_id === courseId)
+            .flatMap(section => section.lessons || [])
+            .filter(lesson => lesson.is_published) || [];
+
+          // Get completed lessons for this student in this course
+          const completedLessons = studentLessonProgress.filter(progress =>
+            courseLessons.some(lesson => lesson.id === progress.lesson_id) &&
+            progress.completed === true
+          );
+
+          const courseProgress = courseLessons.length > 0 
+            ? Math.round((completedLessons.length / courseLessons.length) * 100)
+            : 0;
+
+          totalProgress += courseProgress;
+
+        // Calculate average score for this course
+        const courseQuizAttempts = studentQuizAttempts.filter(attempt =>
+          (attempt.quizzes as any)?.course_id === courseId
+        );          let courseAverageScore = 0;
+          if (courseQuizAttempts.length > 0) {
+            const totalScores = courseQuizAttempts.reduce((sum, attempt) => sum + (attempt.percentage || 0), 0);
+            courseAverageScore = Math.round(totalScores / courseQuizAttempts.length);
+            totalScore += courseAverageScore;
+            scoreCount++;
+          }
+
+          // Calculate time spent (convert seconds to minutes)
+          const courseTimeSpent = completedLessons.reduce((sum, progress) => sum + Math.round((progress.time_spent_seconds || 0) / 60), 0);
+          totalTimeSpent += courseTimeSpent;
+
+          // Check if course is completed (>= 80% progress)
+          if (courseProgress >= 80) {
+            completedCourses++;
+          }
+
+          // Set current course (most recent enrollment)
+          if (!student.currentCourse || enrollment.enrollment_date > student.lastActive) {
+            student.currentCourse = courseName;
+            student.lastActive = enrollment.enrollment_date;
+          }
+
+          // Add to course progress
+          student.courseProgress.push({
+            courseId: courseId,
+            courseName: courseName,
+            progress: courseProgress,
+            lessonsCompleted: completedLessons.length,
+            totalLessons: courseLessons.length,
+            averageScore: courseAverageScore,
+            timeSpent: Math.round(courseTimeSpent / 60), // Convert to minutes
+            lastAccessed: completedLessons.length > 0
+              ? completedLessons[completedLessons.length - 1].completion_date || enrollment.enrollment_date
+              : enrollment.enrollment_date,
+            status: courseProgress >= 80 ? 'completed' : courseProgress > 0 ? 'in_progress' : 'not_started'
+          });
+        });
+
+        // Calculate overall statistics
+        student.overallProgress = studentEnrollments.length > 0 
+          ? Math.round(totalProgress / studentEnrollments.length) 
+          : 0;
+        student.averageScore = scoreCount > 0 ? Math.round(totalScore / scoreCount) : 0;
+        student.timeSpent = Math.round(totalTimeSpent / 60); // Convert to minutes
+        student.completedCourses = completedCourses;
+
+        // Set last active to the most recent lesson completion or quiz attempt
+        const allActivity = [
+          ...studentLessonProgress.map(p => p.completion_date).filter(Boolean),
+          ...studentQuizAttempts.map(q => q.completed_at).filter(Boolean)
+        ].sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime());
+
+        if (allActivity.length > 0) {
+          student.lastActive = allActivity[0]!;
         }
-      ];
 
-      // Set the mock data
-      setStudents(mockStudents);
-      setCourseAnalytics(mockCourseAnalytics);
+        // Determine strengths and improvements based on performance
+        if (student.averageScore >= 90) {
+          student.strengths.push('Excellence', 'Consistency');
+        } else if (student.averageScore >= 80) {
+          student.strengths.push('Good Performance', 'Understanding');
+        } else if (student.averageScore >= 70) {
+          student.strengths.push('Steady Progress');
+        }
+
+        if (student.overallProgress >= 80) {
+          student.strengths.push('Course Completion', 'Dedication');
+        }
+
+        if (student.averageScore < 70) {
+          student.improvements.push('Score Improvement', 'Concept Understanding');
+        }
+        if (student.overallProgress < 50) {
+          student.improvements.push('Course Engagement', 'Regular Practice');
+        }
+      });
+
+      const studentsArray = Array.from(studentsMap.values());
+
+      // Create course analytics
+      const courseAnalytics: CourseAnalytics[] = teacherCourses?.map((tc: any) => {
+        const courseStudents = studentsArray.filter(s => 
+          s.courseProgress.some(cp => cp.courseId === tc.course_id)
+        );
+        
+        const avgProgress = courseStudents.length > 0
+          ? Math.round(courseStudents.reduce((sum, s) => {
+              const courseProgress = s.courseProgress.find(cp => cp.courseId === tc.course_id);
+              return sum + (courseProgress?.progress || 0);
+            }, 0) / courseStudents.length)
+          : 0;
+
+        const avgScore = courseStudents.length > 0
+          ? Math.round(courseStudents.reduce((sum, s) => {
+              const courseProgress = s.courseProgress.find(cp => cp.courseId === tc.course_id);
+              return sum + (courseProgress?.averageScore || 0);
+            }, 0) / courseStudents.length)
+          : 0;
+
+        const completedStudents = courseStudents.filter(s => 
+          s.courseProgress.some(cp => cp.courseId === tc.course_id && cp.status === 'completed')
+        ).length;
+
+        return {
+          courseId: tc.course_id,
+          courseName: tc.courses?.[0]?.title || 'Unknown Course',
+          enrolledStudents: courseStudents.length,
+          averageProgress: avgProgress,
+          averageScore: avgScore,
+          completionRate: courseStudents.length > 0 ? Math.round((completedStudents / courseStudents.length) * 100) : 0,
+          engagement: avgProgress >= 80 ? 'high' : avgProgress >= 50 ? 'medium' : 'low'
+        };
+      }) || [];
+
+      // Set the real data
+      setStudents(studentsArray);
+      setCourseAnalytics(courseAnalytics);
       setIsLoading(false);
-
-      // TODO: Replace with real data fetching when TeacherService is fully implemented
-      // const teacherService = new TeacherService(user.id);
-      // const studentsData = await teacherService.getStudents();
-      // const coursesData = await teacherService.getCourses();
     } catch (error) {
       console.error('Error fetching progress data:', error);
       setIsLoading(false);

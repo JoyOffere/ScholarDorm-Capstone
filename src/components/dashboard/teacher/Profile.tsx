@@ -94,49 +94,74 @@ export const TeacherProfile: React.FC = () => {
     if (!user) return;
 
     try {
-      // Fetch teacher statistics
-      const [coursesResult, studentsResult, lessonsResult, quizzesResult] = await Promise.allSettled([
-        supabase
-          .from('teacher_course_assignments')
-          .select('course_id', { count: 'exact' })
-          .eq('teacher_id', user.id),
-        supabase
-          .from('student_enrollments')
+      // First get teacher's course assignments
+      const { data: teacherCourses, error: coursesError } = await supabase
+        .from('teacher_course_assignments')
+        .select('course_id')
+        .eq('teacher_id', user.id);
+
+      if (coursesError) throw coursesError;
+
+      const courseIds = teacherCourses?.map(c => c.course_id) || [];
+      const coursesCount = courseIds.length;
+
+      // Initialize default results
+      let studentsCount = 0;
+      let lessonsCount = 0;
+      let quizzesCount = 0;
+
+      // Only proceed with further queries if we have courses
+      if (courseIds.length > 0) {
+        // Get students count
+        const { count: studentsCountResult, error: studentsError } = await supabase
+          .from('course_enrollments')
           .select('student_id', { count: 'exact' })
-          .in('course_id', 
-            (await supabase
-              .from('teacher_course_assignments')
-              .select('course_id')
-              .eq('teacher_id', user.id)
-            ).data?.map(c => c.course_id) || []
-          ),
-        supabase
-          .from('lessons')
-          .select('id', { count: 'exact' })
-          .in('course_section_id',
-            (await supabase
-              .from('course_sections')
-              .select('id')
-              .in('course_id',
-                (await supabase
-                  .from('teacher_course_assignments')
-                  .select('course_id')
-                  .eq('teacher_id', user.id)
-                ).data?.map(c => c.course_id) || []
-              )
-            ).data?.map(s => s.id) || []
-          ),
-        supabase
-          .from('enhanced_quizzes')
-          .select('id', { count: 'exact' })
-          .eq('created_by', user.id)
-      ]);
+          .in('course_id', courseIds);
+
+        if (!studentsError) {
+          studentsCount = studentsCountResult || 0;
+        }
+
+        // Get course sections
+        const { data: courseSections, error: sectionsError } = await supabase
+          .from('course_sections')
+          .select('id')
+          .in('course_id', courseIds);
+
+        if (!sectionsError && courseSections && courseSections.length > 0) {
+          const sectionIds = courseSections.map(s => s.id);
+          
+          // Get lessons for sections (reuse for both lesson count and quiz count)
+          const { data: lessons, error: lessonsError } = await supabase
+            .from('lessons')
+            .select('id')
+            .in('course_section_id', sectionIds);
+
+          if (!lessonsError && lessons) {
+            lessonsCount = lessons.length;
+            
+            // Get quizzes count for these lessons
+            if (lessons.length > 0) {
+              const lessonIds = lessons.map(l => l.id);
+              
+              const { count: quizzesCountResult, error: quizzesError } = await supabase
+                .from('quizzes')
+                .select('id', { count: 'exact' })
+                .in('lesson_id', lessonIds);
+
+              if (!quizzesError) {
+                quizzesCount = quizzesCountResult || 0;
+              }
+            }
+          }
+        }
+      }
 
       const newStats = {
-        total_courses: coursesResult.status === 'fulfilled' ? coursesResult.value.count || 0 : 0,
-        total_students: studentsResult.status === 'fulfilled' ? studentsResult.value.count || 0 : 0,
-        total_lessons: lessonsResult.status === 'fulfilled' ? lessonsResult.value.count || 0 : 0,
-        total_quizzes: quizzesResult.status === 'fulfilled' ? quizzesResult.value.count || 0 : 0,
+        total_courses: coursesCount,
+        total_students: studentsCount,
+        total_lessons: lessonsCount,
+        total_quizzes: quizzesCount,
         average_rating: 4.5 // Placeholder - would need to implement rating system
       };
 

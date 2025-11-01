@@ -47,6 +47,12 @@ import {
 } from './components/dashboard/teacher';
 import { TeacherQuizCreate } from './components/dashboard/teacher/QuizCreate';
 import { TeacherContentCreate } from './components/dashboard/teacher/ContentCreate';
+import { TeacherQuizReview } from './components/dashboard/teacher/QuizReview';
+import { TeacherCourseCreate } from './components/dashboard/teacher/CourseCreate';
+import { TeacherRSLContentCreate } from './components/dashboard/teacher/RSLContentCreate';
+import { TeacherMessages } from './components/dashboard/teacher/Messages';
+import { TeacherNotifications } from './components/dashboard/teacher/Notifications';
+import { TeacherActivity } from './components/dashboard/teacher/Activity';
 import { TermsOfService } from './components/legal/TermsOfService';
 import { PrivacyPolicy } from './components/legal/PrivacyPolicy';
 import { RSLPage } from './components/accessibility/RSLPage';
@@ -530,14 +536,7 @@ const AppContent: React.FC = () => {
           path="/teacher/courses/create" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create Course</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Course creation functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherCourseCreate />
             </RequireRole>
           } 
         />
@@ -561,14 +560,7 @@ const AppContent: React.FC = () => {
           path="/teacher/quizzes/review" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Review Quizzes</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Quiz review functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherQuizReview />
             </RequireRole>
           } 
         />
@@ -584,14 +576,7 @@ const AppContent: React.FC = () => {
           path="/teacher/activity" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Activity Dashboard</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Activity tracking functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherActivity />
             </RequireRole>
           } 
         />
@@ -615,14 +600,7 @@ const AppContent: React.FC = () => {
           path="/teacher/rsl-content/create" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create RSL Content</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">RSL content creation functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherRSLContentCreate />
             </RequireRole>
           } 
         />
@@ -638,14 +616,7 @@ const AppContent: React.FC = () => {
           path="/teacher/messages" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Messages</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Messaging functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherMessages />
             </RequireRole>
           } 
         />
@@ -661,14 +632,7 @@ const AppContent: React.FC = () => {
           path="/teacher/notifications" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Notifications</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Teacher notifications functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherNotifications />
             </RequireRole>
           } 
         />
