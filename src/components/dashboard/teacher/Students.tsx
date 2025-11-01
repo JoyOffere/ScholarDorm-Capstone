@@ -22,23 +22,47 @@ interface Student {
   status: 'active' | 'inactive' | 'struggling';
   averageScore: number;
   streak: number;
+  courses: string[]; // Course names the student is enrolled in
+}
+
+interface StudentQuizAttempt {
+  id: string;
+  student_id: string;
+  student_name: string;
+  student_email: string;
+  student_avatar?: string;
+  quiz_id: string;
+  quiz_title: string;
+  course_id: string;
+  course_title: string;
+  score: number;
+  percentage: number;
+  passed: boolean;
+  completed_at?: string;
+  time_spent_seconds?: number;
 }
 
 export const TeacherStudents = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
+  const [quizAttempts, setQuizAttempts] = useState<StudentQuizAttempt[]>([]);
+  const [filteredAttempts, setFilteredAttempts] = useState<StudentQuizAttempt[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'struggling'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'progress' | 'lastActive' | 'score'>('name');
+  const [activeTab, setActiveTab] = useState<'students' | 'attempts'>('students');
   const [isLoading, setIsLoading] = useState(true);
+  const [attemptsLoading, setAttemptsLoading] = useState(false);
 
   useEffect(() => {
     fetchStudents();
+    fetchQuizAttempts();
   }, []);
 
   useEffect(() => {
     filterAndSortStudents();
-  }, [students, searchTerm, statusFilter, sortBy]);
+    filterAttempts();
+  }, [students, quizAttempts, searchTerm, statusFilter, sortBy]);
 
   const fetchStudents = async () => {
     try {
@@ -48,41 +72,221 @@ export const TeacherStudents = () => {
         return;
       }
 
-      // Fetch students using the teacher student progress view
-      const { data: studentsData, error: studentsError } = await supabase
-        .from('teacher_student_progress_view')
-        .select('*')
+      // Get teacher's assigned courses first
+      const { data: assignments, error: assignmentError } = await supabase
+        .from('teacher_course_assignments')
+        .select('course_id, courses!course_id(id, title)')
         .eq('teacher_id', user.id);
 
-      if (studentsError) {
-        console.error('Error fetching students:', studentsError);
+      if (assignmentError) {
+        console.error('Error fetching course assignments:', assignmentError);
         return;
       }
 
-      // Transform the data to match our Student interface
-      const transformedStudents: Student[] = studentsData.map((student: any) => ({
-        id: student.student_id,
-        name: student.student_name,
-        email: student.student_email,
-        avatar: student.student_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.student_name)}&background=0D8ABC&color=fff`,
-        progress: Math.round(student.progress_percentage || 0),
-        coursesCompleted: student.course_completed ? 1 : 0,
-        totalCourses: 1, // This represents the current course they're enrolled in with this teacher
-        lastActive: student.last_accessed || new Date().toISOString(),
-        status: student.last_accessed && new Date(student.last_accessed) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) 
-          ? 'active' 
-          : student.progress_percentage < 30 
-            ? 'struggling' 
-            : 'inactive',
-        averageScore: Math.round(student.average_quiz_score || 0),
-        streak: student.streak_count || 0
-      }));
+      const courseIds = assignments?.map(a => a.course_id) || [];
+      
+      if (courseIds.length === 0) {
+        setStudents([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Get students enrolled in teacher's courses
+      const { data: enrollments, error: enrollmentError } = await supabase
+        .from('user_courses')
+        .select(`
+          user_id,
+          course_id,
+          progress_percentage,
+          last_accessed,
+          completed,
+          users!user_id(
+            id,
+            full_name,
+            email,
+            avatar_url,
+            streak_count
+          ),
+          courses!course_id(
+            id,
+            title
+          )
+        `)
+        .in('course_id', courseIds);
+
+      if (enrollmentError) {
+        console.error('Error fetching student enrollments:', enrollmentError);
+        return;
+      }
+
+      // Get quiz scores for students
+      const studentIds = [...new Set(enrollments?.map(e => e.user_id) || [])];
+      const { data: quizScores, error: quizError } = await supabase
+        .from('quiz_attempts')
+        .select('user_id, percentage')
+        .in('user_id', studentIds);
+
+      if (quizError) {
+        console.error('Error fetching quiz scores:', quizError);
+      }
+
+      // Group data by student
+      const studentMap = new Map();
+      
+      enrollments?.forEach(enrollment => {
+        const user = Array.isArray(enrollment.users) ? enrollment.users[0] : enrollment.users;
+        const course = Array.isArray(enrollment.courses) ? enrollment.courses[0] : enrollment.courses;
+        
+        if (!studentMap.has(user.id)) {
+          studentMap.set(user.id, {
+            id: user.id,
+            name: user.full_name,
+            email: user.email,
+            avatar: user.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.full_name)}&background=0D8ABC&color=fff`,
+            streak: user.streak_count || 0,
+            courses: [],
+            enrollments: []
+          });
+        }
+        
+        const student = studentMap.get(user.id);
+        student.courses.push(course.title);
+        student.enrollments.push(enrollment);
+      });
+
+      // Transform to Student interface
+      const transformedStudents: Student[] = Array.from(studentMap.values()).map(student => {
+        const avgProgress = student.enrollments.reduce((sum: number, e: any) => sum + (e.progress_percentage || 0), 0) / student.enrollments.length;
+        const completedCourses = student.enrollments.filter((e: any) => e.completed).length;
+        const lastActive = student.enrollments.reduce((latest: string, e: any) => {
+          return e.last_accessed && (!latest || e.last_accessed > latest) ? e.last_accessed : latest;
+        }, '');
+
+        // Calculate average quiz score for this student
+        const studentQuizScores = quizScores?.filter(q => q.user_id === student.id) || [];
+        const avgScore = studentQuizScores.length > 0 
+          ? studentQuizScores.reduce((sum, q) => sum + q.percentage, 0) / studentQuizScores.length 
+          : 0;
+
+        return {
+          id: student.id,
+          name: student.name,
+          email: student.email,
+          avatar: student.avatar,
+          progress: Math.round(avgProgress),
+          coursesCompleted: completedCourses,
+          totalCourses: student.enrollments.length,
+          lastActive: lastActive || new Date().toISOString(),
+          status: lastActive && new Date(lastActive) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) 
+            ? 'active' 
+            : avgProgress < 30 
+              ? 'struggling' 
+              : 'inactive',
+          averageScore: Math.round(avgScore),
+          streak: student.streak,
+          courses: student.courses
+        };
+      });
 
       setStudents(transformedStudents);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching students:', error);
       setIsLoading(false);
+    }
+  };
+
+  const fetchQuizAttempts = async () => {
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) return;
+
+      setAttemptsLoading(true);
+
+      // Get teacher's assigned courses
+      const { data: assignments } = await supabase
+        .from('teacher_course_assignments')
+        .select('course_id')
+        .eq('teacher_id', user.id);
+
+      const courseIds = assignments?.map(a => a.course_id) || [];
+
+      if (courseIds.length === 0) {
+        setQuizAttempts([]);
+        setAttemptsLoading(false);
+        return;
+      }
+
+      // Get quiz attempts from students in teacher's courses
+      const { data: attempts, error: attemptsError } = await supabase
+        .from('quiz_attempts')
+        .select(`
+          id,
+          user_id,
+          quiz_id,
+          score,
+          percentage,
+          passed,
+          completed_at,
+          time_spent_seconds,
+          users!user_id(
+            id,
+            full_name,
+            email,
+            avatar_url
+          ),
+          quizzes!quiz_id(
+            id,
+            title,
+            course_id,
+            courses!course_id(
+              id,
+              title
+            )
+          )
+        `)
+        .order('completed_at', { ascending: false });
+
+      if (attemptsError) {
+        console.error('Error fetching quiz attempts:', attemptsError);
+        setAttemptsLoading(false);
+        return;
+      }
+
+      // Filter attempts for teacher's courses and transform data
+      const filteredAttempts: StudentQuizAttempt[] = (attempts || [])
+        .filter(attempt => {
+          const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+          return courseIds.includes(quiz?.course_id);
+        })
+        .map(attempt => {
+          const user = Array.isArray(attempt.users) ? attempt.users[0] : attempt.users;
+          const quiz = Array.isArray(attempt.quizzes) ? attempt.quizzes[0] : attempt.quizzes;
+          const course = Array.isArray(quiz?.courses) ? quiz.courses[0] : quiz?.courses;
+
+          return {
+            id: attempt.id,
+            student_id: user.id,
+            student_name: user.full_name,
+            student_email: user.email,
+            student_avatar: user.avatar_url,
+            quiz_id: quiz.id,
+            quiz_title: quiz.title,
+            course_id: course.id,
+            course_title: course.title,
+            score: attempt.score,
+            percentage: attempt.percentage,
+            passed: attempt.passed,
+            completed_at: attempt.completed_at,
+            time_spent_seconds: attempt.time_spent_seconds
+          };
+        });
+
+      setQuizAttempts(filteredAttempts);
+      setAttemptsLoading(false);
+    } catch (error) {
+      console.error('Error fetching quiz attempts:', error);
+      setAttemptsLoading(false);
     }
   };
 
@@ -119,6 +323,22 @@ export const TeacherStudents = () => {
     });
 
     setFilteredStudents(filtered);
+  };
+
+  const filterAttempts = () => {
+    let filtered = quizAttempts;
+
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(attempt =>
+        attempt.student_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        attempt.student_email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        attempt.quiz_title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        attempt.course_title.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+
+    setFilteredAttempts(filtered);
   };
 
   const getStatusBadge = (status: string) => {
@@ -167,7 +387,52 @@ export const TeacherStudents = () => {
           </div>
         </div>
 
-        {/* Stats Cards */}
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex space-x-8">
+            <button
+              onClick={() => setActiveTab('students')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'students'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4" />
+                <span>My Students</span>
+                {students.length > 0 && (
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                    {students.length}
+                  </span>
+                )}
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('attempts')}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'attempts'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              <div className="flex items-center space-x-2">
+                <BarChart3 className="w-4 h-4" />
+                <span>Quiz Performance</span>
+                {quizAttempts.length > 0 && (
+                  <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                    {quizAttempts.length}
+                  </span>
+                )}
+              </div>
+            </button>
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'students' ? (
+          <div>
+            {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -391,6 +656,205 @@ export const TeacherStudents = () => {
             </div>
           )}
         </div>
+          </div>
+        ) : (
+          /* Quiz Performance Tab */
+          <div>
+            {/* Performance Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Attempts</p>
+                    <p className="text-2xl font-bold text-gray-900">{quizAttempts.length}</p>
+                  </div>
+                  <div className="p-3 bg-blue-100 rounded-xl">
+                    <BarChart3 className="w-6 h-6 text-blue-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Average Score</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {quizAttempts.length > 0 
+                        ? Math.round(quizAttempts.reduce((sum, attempt) => sum + attempt.percentage, 0) / quizAttempts.length)
+                        : 0}%
+                    </p>
+                  </div>
+                  <div className="p-3 bg-green-100 rounded-xl">
+                    <Award className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Pass Rate</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {quizAttempts.length > 0 
+                        ? Math.round((quizAttempts.filter(attempt => attempt.passed).length / quizAttempts.length) * 100)
+                        : 0}%
+                    </p>
+                  </div>
+                  <div className="p-3 bg-purple-100 rounded-xl">
+                    <CheckCircle className="w-6 h-6 text-purple-600" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Unique Students</p>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {new Set(quizAttempts.map(attempt => attempt.student_id)).size}
+                    </p>
+                  </div>
+                  <div className="p-3 bg-orange-100 rounded-xl">
+                    <Users className="w-6 h-6 text-orange-600" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Search */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
+              <div className="flex items-center space-x-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                  <input
+                    type="text"
+                    placeholder="Search students, quizzes, or courses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Quiz Attempts List */}
+            {attemptsLoading ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+                <div className="animate-pulse">
+                  <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto mb-4"></div>
+                  <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
+                </div>
+              </div>
+            ) : filteredAttempts.length > 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200">
+                  <h2 className="text-lg font-semibold text-gray-900">Quiz Performance</h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-100">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Student</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quiz</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Score</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {filteredAttempts.map((attempt) => (
+                        <tr key={attempt.id} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
+                                {attempt.student_avatar ? (
+                                  <img
+                                    className="h-10 w-10 rounded-full"
+                                    src={attempt.student_avatar}
+                                    alt={attempt.student_name}
+                                  />
+                                ) : (
+                                  <span className="text-sm font-medium text-gray-600">
+                                    {attempt.student_name.charAt(0)}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="ml-4">
+                                <div className="text-sm font-medium text-gray-900">
+                                  {attempt.student_name}
+                                </div>
+                                <div className="text-sm text-gray-500">
+                                  {attempt.student_email}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900">
+                              {attempt.quiz_title}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">
+                              {attempt.course_title}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <span className={`text-sm font-medium ${
+                                attempt.percentage >= 80 ? 'text-green-600' :
+                                attempt.percentage >= 60 ? 'text-yellow-600' :
+                                'text-red-600'
+                              }`}>
+                                {attempt.percentage.toFixed(1)}%
+                              </span>
+                              <span className="ml-2 text-xs text-gray-500">
+                                ({attempt.score} points)
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${
+                              attempt.passed
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {attempt.passed ? 'Passed' : 'Failed'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {attempt.completed_at ? 
+                              new Date(attempt.completed_at).toLocaleDateString() :
+                              'In Progress'
+                            }
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {attempt.time_spent_seconds ? 
+                              `${Math.floor(attempt.time_spent_seconds / 60)}m ${attempt.time_spent_seconds % 60}s` :
+                              'N/A'
+                            }
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+                <BarChart3 className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Quiz Attempts Yet</h3>
+                <p className="text-gray-600">
+                  {searchTerm 
+                    ? 'No attempts found matching your search criteria'
+                    : 'Students haven\'t taken any quizzes for your assigned courses yet'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );
