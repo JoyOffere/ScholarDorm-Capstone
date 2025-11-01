@@ -36,7 +36,7 @@ interface TeacherAssignment {
   teacher_id: string;
   course_id: string;
   assigned_at: string;
-  assigned_by: string;
+  assigned_by?: string;
   teacher: Teacher;
   course: Course;
   status: 'active' | 'inactive';
@@ -44,7 +44,7 @@ interface TeacherAssignment {
 
 interface NewAssignment {
   teacher_id: string;
-  course_id: string;
+  course_ids: string[];
 }
 
 export const AdminTeacherAssignments: React.FC = () => {
@@ -59,7 +59,7 @@ export const AdminTeacherAssignments: React.FC = () => {
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [newAssignment, setNewAssignment] = useState<NewAssignment>({
     teacher_id: '',
-    course_id: ''
+    course_ids: []
   });
   const [assignmentLoading, setAssignmentLoading] = useState(false);
 
@@ -106,8 +106,8 @@ export const AdminTeacherAssignments: React.FC = () => {
             id,
             title,
             description,
-            level,
-            category,
+            difficulty_level,
+            subject,
             created_at,
             is_active
           )
@@ -116,19 +116,27 @@ export const AdminTeacherAssignments: React.FC = () => {
 
       if (error) throw error;
 
-      const formattedAssignments: TeacherAssignment[] = (data || []).map(item => ({
-        id: item.id,
-        teacher_id: item.teacher_id,
-        course_id: item.course_id,
-        assigned_at: item.assigned_at,
-        assigned_by: item.assigned_by,
-        teacher: Array.isArray(item.users) ? item.users[0] : item.users,
-        course: Array.isArray(item.courses) ? item.courses[0] : item.courses,
-        status: (() => {
-          const course = Array.isArray(item.courses) ? item.courses[0] : item.courses;
-          return course?.is_active ? 'active' : 'inactive';
-        })()
-      }));
+      const formattedAssignments: TeacherAssignment[] = (data || []).map(item => {
+        const course = Array.isArray(item.courses) ? item.courses[0] : item.courses;
+        return {
+          id: item.id,
+          teacher_id: item.teacher_id,
+          course_id: item.course_id,
+          assigned_at: item.assigned_at,
+          assigned_by: item.assigned_by,
+          teacher: Array.isArray(item.users) ? item.users[0] : item.users,
+          course: {
+            id: course?.id || '',
+            title: course?.title || '',
+            description: course?.description || '',
+            level: course?.difficulty_level || '',
+            category: course?.subject || '',
+            created_at: course?.created_at || '',
+            is_active: course?.is_active || false
+          },
+          status: course?.is_active ? 'active' : 'inactive'
+        };
+      });
 
       setAssignments(formattedAssignments);
     } catch (error) {
@@ -179,43 +187,34 @@ export const AdminTeacherAssignments: React.FC = () => {
   };
 
   const createAssignment = async () => {
-    if (!user || !newAssignment.teacher_id || !newAssignment.course_id) return;
+    if (!user || !newAssignment.teacher_id || newAssignment.course_ids.length === 0) return;
 
     setAssignmentLoading(true);
     try {
-      // Check if assignment already exists
-      const { data: existing } = await supabase
-        .from('teacher_course_assignments')
-        .select('id')
-        .eq('teacher_id', newAssignment.teacher_id)
-        .eq('course_id', newAssignment.course_id)
-        .single();
-
-      if (existing) {
-        alert('This teacher is already assigned to this course.');
-        return;
-      }
+      // Create multiple assignments - one for each selected course
+      const assignmentsToCreate = newAssignment.course_ids.map(courseId => ({
+        teacher_id: newAssignment.teacher_id,
+        course_id: courseId,
+        assigned_by: user.id,
+        assigned_at: new Date().toISOString()
+      }));
 
       const { error } = await supabase
         .from('teacher_course_assignments')
-        .insert({
-          teacher_id: newAssignment.teacher_id,
-          course_id: newAssignment.course_id,
-          assigned_by: user.id,
-          assigned_at: new Date().toISOString()
-        });
+        .insert(assignmentsToCreate);
 
       if (error) throw error;
 
       setShowAssignModal(false);
-      setNewAssignment({ teacher_id: '', course_id: '' });
+      setNewAssignment({ teacher_id: '', course_ids: [] });
       fetchAssignments();
       
       // Show success message
-      alert('Teacher assignment created successfully!');
+      const courseCount = newAssignment.course_ids.length;
+      alert(`Successfully created ${courseCount} teacher assignment${courseCount > 1 ? 's' : ''}!`);
     } catch (error) {
-      console.error('Error creating assignment:', error);
-      alert('Failed to create assignment.');
+      console.error('Error creating assignments:', error);
+      alert('Failed to create assignments.');
     } finally {
       setAssignmentLoading(false);
     }
@@ -257,10 +256,8 @@ export const AdminTeacherAssignments: React.FC = () => {
   };
 
   const getAvailableCoursesForTeacher = (teacherId: string) => {
-    const assignedCourseIds = assignments
-      .filter(a => a.teacher_id === teacherId)
-      .map(a => a.course_id);
-    return courses.filter(course => !assignedCourseIds.includes(course.id));
+    // Return all active courses - teachers can have multiple assignments
+    return courses.filter(course => course.is_active);
   };
 
   if (loading) {
@@ -537,44 +534,96 @@ export const AdminTeacherAssignments: React.FC = () => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Course
+                    Select Courses ({newAssignment.course_ids.length} selected)
                     {coursesLoading && (
                       <span className="ml-2 text-xs text-blue-600">Loading courses...</span>
                     )}
                   </label>
-                  <select
-                    value={newAssignment.course_id}
-                    onChange={(e) => setNewAssignment(prev => ({ ...prev, course_id: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    disabled={!newAssignment.teacher_id || coursesLoading}
-                  >
-                    <option value="">
-                      {coursesLoading ? "Loading courses..." : 
-                       !newAssignment.teacher_id ? "Select a teacher first..." : 
-                       "Choose a course..."}
-                    </option>
-                    {!coursesLoading && (newAssignment.teacher_id ? 
-                      getAvailableCoursesForTeacher(newAssignment.teacher_id).map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title} ({course.level})
-                        </option>
-                      )) :
-                      courses.map((course) => (
-                        <option key={course.id} value={course.id}>
-                          {course.title} ({course.level})
-                        </option>
-                      ))
-                    )}
-                  </select>
-                  {!coursesLoading && newAssignment.teacher_id && getAvailableCoursesForTeacher(newAssignment.teacher_id).length === 0 && (
-                    <p className="text-sm text-orange-600 mt-1">
-                      This teacher is already assigned to all available courses.
-                    </p>
+                  
+                  {!coursesLoading && newAssignment.teacher_id ? (
+                    <div className="border border-gray-300 rounded-lg">
+                      {/* Select All Header */}
+                      {getAvailableCoursesForTeacher(newAssignment.teacher_id).length > 1 && (
+                        <div className="p-3 border-b border-gray-200 bg-gray-50">
+                          <label className="flex items-center space-x-3 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={newAssignment.course_ids.length === getAvailableCoursesForTeacher(newAssignment.teacher_id).length}
+                              onChange={(e) => {
+                                const allCourseIds = getAvailableCoursesForTeacher(newAssignment.teacher_id).map(c => c.id);
+                                setNewAssignment(prev => ({
+                                  ...prev,
+                                  course_ids: e.target.checked ? allCourseIds : []
+                                }));
+                              }}
+                              className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                            />
+                            <span className="text-sm font-medium text-gray-700">
+                              Select All ({getAvailableCoursesForTeacher(newAssignment.teacher_id).length} courses)
+                            </span>
+                          </label>
+                        </div>
+                      )}
+                      
+                      <div className="space-y-2 max-h-48 overflow-y-auto p-3">
+                        {getAvailableCoursesForTeacher(newAssignment.teacher_id).map((course) => (
+                        <label key={course.id} className="flex items-center space-x-3 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={newAssignment.course_ids.includes(course.id)}
+                            onChange={(e) => {
+                              const courseId = course.id;
+                              setNewAssignment(prev => ({
+                                ...prev,
+                                course_ids: e.target.checked
+                                  ? [...prev.course_ids, courseId]
+                                  : prev.course_ids.filter(id => id !== courseId)
+                              }));
+                            }}
+                            className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                          />
+                          <div className="flex-1">
+                            <span className="text-sm font-medium text-gray-900">{course.title}</span>
+                            <span className="ml-2 text-xs text-gray-500">({course.level})</span>
+                            {course.category && (
+                              <span className="ml-2 text-xs text-blue-600">{course.category}</span>
+                            )}
+                          </div>
+                        </label>
+                        ))}
+                        
+                        {getAvailableCoursesForTeacher(newAssignment.teacher_id).length === 0 && (
+                          <p className="text-sm text-orange-600 text-center py-4">
+                            No active courses available for assignment.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full px-3 py-8 border border-gray-300 rounded-lg bg-gray-50 text-center text-gray-500">
+                      {coursesLoading ? "Loading courses..." : "Select a teacher first to see available courses"}
+                    </div>
                   )}
+                  
                   {courses.length === 0 && !coursesLoading && (
                     <p className="text-sm text-red-600 mt-1">
                       No courses available. Please create courses first.
                     </p>
+                  )}
+                  
+                  {newAssignment.course_ids.length > 0 && (
+                    <div className="mt-2 flex items-center justify-between text-sm">
+                      <span className="text-gray-600">
+                        {newAssignment.course_ids.length} course{newAssignment.course_ids.length > 1 ? 's' : ''} selected
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setNewAssignment(prev => ({ ...prev, course_ids: [] }))}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Clear all
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -587,10 +636,13 @@ export const AdminTeacherAssignments: React.FC = () => {
                   </button>
                   <button
                     onClick={createAssignment}
-                    disabled={!newAssignment.teacher_id || !newAssignment.course_id || assignmentLoading}
+                    disabled={!newAssignment.teacher_id || newAssignment.course_ids.length === 0 || assignmentLoading}
                     className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
-                    {assignmentLoading ? 'Creating...' : 'Create Assignment'}
+                    {assignmentLoading ? 'Creating...' : 
+                     newAssignment.course_ids.length > 1 ? 
+                     `Create ${newAssignment.course_ids.length} Assignments` : 
+                     'Create Assignment'}
                   </button>
                 </div>
               </div>
