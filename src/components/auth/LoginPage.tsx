@@ -293,12 +293,12 @@ return (
       <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 lg:px-8 relative z-10">
         <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           
-          {/* Left Column: Welcome Content */}
+          {/* Left Column: Welcome Content - Hidden on mobile */}
           <motion.div
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="space-y-8"
+            className="space-y-8 hidden lg:block"
           >
             {/* Logo and Brand */}
             <div className="flex items-center space-x-4 mb-8">
@@ -405,7 +405,7 @@ return (
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
-            className="w-full max-w-md mx-auto lg:mx-0"
+            className="w-full max-w-md mx-auto lg:max-w-md lg:mx-0"
           >
             <div className="bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/20 p-8">
               <div className="text-center mb-8">

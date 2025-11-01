@@ -79,12 +79,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       to: '/quizzes',
       icon: <ClipboardListIcon size={20} />,
       badge: 3
-    }, {
-      name: 'Games',
-      to: '/games',
-      icon: <GamepadIcon size={20} />,
-      isNew: true
-    }, {
+    }, 
+    // {
+    //   name: 'Games',
+    //   to: '/games',
+    //   icon: <GamepadIcon size={20} />,
+    //   isNew: true
+    // }, 
+    {
       name: 'Leaderboard',
       to: '/leaderboard',
       icon: <TrophyIcon size={20} />
@@ -132,11 +134,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       name: 'Quizzes',
       to: '/admin/quizzes',
       icon: <ClipboardListIcon size={20} />
-    }, {
-      name: 'Games',
-      to: '/admin/games',
-      icon: <GamepadIcon size={20} />
-    }, {
+    }, 
+    // {
+    //   name: 'Games',
+    //   to: '/admin/games',
+    //   icon: <GamepadIcon size={20} />
+    // }, 
+    {
       name: 'Announcements',
       to: '/admin/announcements',
       icon: <MegaphoneIcon size={20} />

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { LoginPage } from './components/auth/LoginPage';
 import { SignupPage } from './components/auth/SignupPage';
+import { ForgotPasswordPage } from './components/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './components/auth/ResetPasswordPage';
 import { AuthCallback } from './components/auth/AuthCallback';
 import { StudentDashboard } from './components/dashboard/student/Dashboard';
 import { StudentCourses } from './components/dashboard/student/Courses';
@@ -187,6 +189,40 @@ const AppContent: React.FC = () => {
               <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
             ) : (
               <SignupPage />
+            )
+          }
+        />
+
+        {/* Password reset routes */}
+        <Route
+          path="/forgot-password"
+          element={
+            loading ? (
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading...</p>
+                </div>
+              </div>
+            ) : session && user?.role ? (
+              <Navigate to={user.role === 'admin' ? '/admin' : '/dashboard'} replace />
+            ) : (
+              <ForgotPasswordPage />
+            )
+          }
+        />
+        <Route
+          path="/reset-password"
+          element={
+            loading ? (
+              <div className="min-h-screen flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading...</p>
+                </div>
+              </div>
+            ) : (
+              <ResetPasswordPage />
             )
           }
         />

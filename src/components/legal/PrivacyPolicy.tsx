@@ -15,6 +15,7 @@ const sections = [
   { id: 'cookies', title: '8. Cookies and Tracking Technologies' },
   { id: 'changes', title: '9. Changes to This Privacy Policy' },
   { id: 'contact', title: '10. Contact Us' },
+  { id: 'ethical', title: '11. Ethical Compliance' },
 ];
 
 export const PrivacyPolicy: React.FC = () => {
@@ -158,7 +159,7 @@ export const PrivacyPolicy: React.FC = () => {
 
                 <Section id="security" title="5. Data Security" setActiveSection={setActiveSection}>
                   <p>
-                    We implement appropriate technical and organizational measures to protect your personal data against unauthorized access, alteration, disclosure, or destruction. However, no method of transmission over the Internet or electronic storage is 100% secure, and we cannot guarantee absolute security.
+                    We implement appropriate technical and organizational measures to protect your personal data against unauthorized access, alteration, disclosure, or destruction. Our platform uses HTTPS encryption for all data transmissions and employs secure authentication mechanisms to prevent web attacks. However, no method of transmission over the Internet or electronic storage is 100% secure, and we cannot guarantee absolute security.
                   </p>
                 </Section>
 
@@ -175,7 +176,7 @@ export const PrivacyPolicy: React.FC = () => {
 
                 <Section id="children" title="7. Children’s Privacy" setActiveSection={setActiveSection}>
                   <p>
-                    Our platform is designed for users of all ages, including children. We take additional steps to protect children's privacy and comply with applicable laws. Parents or guardians can review, edit, or request deletion of their child's information by contacting us.
+                    Our platform is designed for users of all ages, including children. We take additional steps to protect children's privacy and comply with applicable laws. Our platform features visual interfaces that accommodate deaf/hard-of-hearing users, ensuring accessibility for all. Parents or guardians can review, edit, or request deletion of their child's information by contacting us.
                   </p>
                 </Section>
 
@@ -201,6 +202,12 @@ export const PrivacyPolicy: React.FC = () => {
                     >
                       privacy@scholardorm.com
                     </a>.
+                  </p>
+                </Section>
+
+                <Section id="ethical" title="11. Ethical Compliance" setActiveSection={setActiveSection}>
+                  <p>
+                    ScholarDorm is committed to ethical data practices. We ensure data privacy by anonymizing research data and obtaining informed consent in both RSL (Rwanda Sign Language) and text formats. Our platform complies with all relevant ethical standards for educational technology, particularly in supporting deaf and hard-of-hearing communities.
                   </p>
                 </Section>
               </div>

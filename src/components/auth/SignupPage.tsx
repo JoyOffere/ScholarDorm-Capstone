@@ -21,6 +21,8 @@ import {
   ChevronRightIcon,
   PauseIcon,
   PlayIcon,
+  ArrowLeftIcon,
+  HomeIcon,
 } from 'lucide-react';
 import { RSLModal } from './RSLModal';
 
@@ -285,6 +287,31 @@ export const SignupPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+      {/* Navigation Header */}
+      <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-center">
+        <motion.button
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          onClick={() => navigate(-1)}
+          className="flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300 border border-gray-200/50"
+        >
+          <ArrowLeftIcon className="w-4 h-4 text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">Back</span>
+        </motion.button>
+        
+        <motion.button
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.5 }}
+          onClick={() => navigate('/')}
+          className="flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full shadow-lg hover:shadow-xl hover:bg-white/90 transition-all duration-300 border border-gray-200/50"
+        >
+          <HomeIcon className="w-4 h-4 text-gray-600" />
+          <span className="text-sm font-medium text-gray-700">Home</span>
+        </motion.button>
+      </div>
+      
       <div className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8 py-12">
         <div className="w-full max-w-7xl grid lg:grid-cols-2 gap-12 items-stretch">
           {/* Left Side - Slideshow */}

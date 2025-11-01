@@ -650,14 +650,14 @@ export const StudentDashboard: React.FC = () => {
                   Quizzes
                 </span>
               </Link>
-              <Link to="/games" className="flex flex-col items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+              {/* <Link to="/games" className="flex flex-col items-center p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
                 <div className="p-2 bg-purple-100 rounded-full text-purple-600 mb-2">
                   <GamepadIcon size={18} />
                 </div>
                 <span className="text-xs font-medium text-purple-800">
                   Games
                 </span>
-              </Link>
+              </Link> */}
               <Link to="/achievements" className="flex flex-col items-center p-3 bg-yellow-50 rounded-lg hover:bg-yellow-100 transition-colors">
                 <div className="p-2 bg-yellow-100 rounded-full text-yellow-600 mb-2">
                   <AwardIcon size={18} />

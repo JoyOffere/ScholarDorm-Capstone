@@ -108,7 +108,7 @@ export const TermsOfService: React.FC = () => {
 
                   <Section id="description" title="2. Description of Service" setActiveSection={setActiveSection}>
                     <p>
-                      ScholarDorm provides an online educational platform designed to help students in Rwanda access quality educational content, track their learning progress, and engage with educational materials. Our services include course access, progress tracking, achievement badges, and other educational tools.
+                      ScholarDorm provides an online educational platform designed to help students in Rwanda access quality educational content, track their learning progress, and engage with educational materials. Our services include course access, progress tracking, achievement badges, and other educational tools. The platform is designed to support up to 50 users in its pilot phase with page load times under 3 seconds on 2G/3G networks, and scales up to 500 users in future phases without major redesign. We maintain 99% uptime and handle errors gracefully, while ensuring browser compatibility across all major browsers.
                     </p>
                   </Section>
 
@@ -127,6 +127,7 @@ export const TermsOfService: React.FC = () => {
                       <li>Impersonate any person or entity</li>
                       <li>Interfere with or disrupt the service or servers</li>
                       <li>Attempt to gain unauthorized access to any part of the service</li>
+                      <li>Engage in conduct that violates our usability standards or accessibility requirements, including the Web Content Accessibility Guidelines (WCAG) 2.1 Level AA</li>
                     </ul>
                   </Section>
 
@@ -156,7 +157,7 @@ export const TermsOfService: React.FC = () => {
 
                   <Section id="liability" title="9. Limitation of Liability" setActiveSection={setActiveSection}>
                     <p>
-                      In no event shall ScholarDorm, its directors, employees, partners, agents, suppliers, or affiliates be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses.
+                      In no event shall ScholarDorm, its directors, employees, partners, agents, suppliers, or affiliates be liable for any indirect, incidental, special, consequential, or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses. While we strive to maintain 99% uptime and handle errors gracefully, we do not guarantee uninterrupted service availability.
                     </p>
                   </Section>
 

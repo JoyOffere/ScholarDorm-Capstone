@@ -152,18 +152,18 @@ export const AdminDashboard: React.FC = () => {
       trendColor: 'text-green-500',
       trendIcon: TrendingUpIcon
     },
-    {
-      title: 'Games & Quizzes',
-      value: stats.totalGames + stats.totalQuizzes,
-      icon: <GamepadIcon size={24} />,
-      color: 'from-pink-500 to-pink-600',
-      bgColor: 'bg-pink-50',
-      textColor: 'text-pink-600',
-      subtext: 'Interactive content',
-      trend: '+10%',
-      trendColor: 'text-green-500',
-      trendIcon: TrendingUpIcon
-    },
+    // {
+    //   title: 'Games & Quizzes',
+    //   value: stats.totalGames + stats.totalQuizzes,
+    //   icon: <GamepadIcon size={24} />,
+    //   color: 'from-pink-500 to-pink-600',
+    //   bgColor: 'bg-pink-50',
+    //   textColor: 'text-pink-600',
+    //   subtext: 'Interactive content',
+    //   trend: '+10%',
+    //   trendColor: 'text-green-500',
+    //   trendIcon: TrendingUpIcon
+    // },
     {
       title: 'Posts & Updates',
       value: stats.totalPosts,
@@ -227,13 +227,13 @@ export const AdminDashboard: React.FC = () => {
       to: '/admin/quizzes',
       color: 'bg-indigo-500 hover:bg-indigo-600'
     },
-    {
-      title: 'Game Center',
-      description: 'Manage educational games',
-      icon: <GamepadIcon size={20} />,
-      to: '/admin/games',
-      color: 'bg-pink-500 hover:bg-pink-600'
-    },
+    // {
+    //   title: 'Game Center',
+    //   description: 'Manage educational games',
+    //   icon: <GamepadIcon size={20} />,
+    //   to: '/admin/games',
+    //   color: 'bg-pink-500 hover:bg-pink-600'
+    // },
     {
       title: 'Content Posts',
       description: 'Manage posts and updates',
