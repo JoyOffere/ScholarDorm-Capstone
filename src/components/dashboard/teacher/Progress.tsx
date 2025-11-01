@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { DashboardLayout } from '../../layout/DashboardLayout';
+import { useAuth } from '../../../contexts/AuthContext';
+import { TeacherService } from '../../../lib/teacher-service';
 
 interface StudentProgress {
   id: string;
@@ -59,6 +61,7 @@ interface CourseAnalytics {
 }
 
 export const TeacherProgress = () => {
+  const { user } = useAuth();
   const [students, setStudents] = useState<StudentProgress[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<StudentProgress[]>([]);
   const [courseAnalytics, setCourseAnalytics] = useState<CourseAnalytics[]>([]);
@@ -78,10 +81,9 @@ export const TeacherProgress = () => {
 
   const fetchProgressData = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      const mockStudents: StudentProgress[] = [
-        {
-          id: '1',
+      if (!user) return;
+
+      const teacherService = new TeacherService(user.id);
           name: 'Aline Uwimana',
           email: 'aline.uwimana@example.com',
           avatar: 'https://images.unsplash.com/photo-1494790108755-2616b6bd8db0?w=150',
@@ -251,8 +253,45 @@ export const TeacherProgress = () => {
         }
       ];
 
-      setStudents(mockStudents);
-      setCourseAnalytics(mockCourseAnalytics);
+      if (!user) return;
+
+      const teacherService = new TeacherService(user.id);
+      
+      // Fetch students and transform to StudentProgress format
+      const studentsData = await teacherService.getStudents(searchTerm, progressFilter === 'all' ? undefined : progressFilter);
+      
+      // Transform TeacherStudent to StudentProgress format
+      const transformedStudents: StudentProgress[] = studentsData.map(student => ({
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        avatar: student.avatar,
+        totalCourses: student.totalCourses,
+        completedCourses: student.completedCourses,
+        currentCourse: student.currentCourse,
+        overallProgress: student.overallProgress,
+        averageScore: student.averageScore,
+        timeSpent: student.timeSpent,
+        lastActive: student.lastActive,
+        strengths: student.strengths,
+        improvements: student.improvements,
+        courseProgress: [] // This would need additional API calls to populate
+      }));
+
+      // Fetch course analytics
+      const coursesData = await teacherService.getCourses();
+      const transformedCourseAnalytics: CourseAnalytics[] = coursesData.map(course => ({
+        courseId: course.id,
+        courseName: course.title,
+        enrolledStudents: course.enrolledStudents,
+        averageProgress: course.averageProgress,
+        averageScore: course.averageRating * 20, // Convert 5-star to percentage
+        completionRate: Math.round((course.completedLessons / course.totalLessons) * 100),
+        engagement: course.averageProgress >= 80 ? 'high' : course.averageProgress >= 50 ? 'medium' : 'low'
+      }));
+
+      setStudents(transformedStudents);
+      setCourseAnalytics(transformedCourseAnalytics);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching progress data:', error);

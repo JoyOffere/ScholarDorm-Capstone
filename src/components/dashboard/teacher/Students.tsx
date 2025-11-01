@@ -41,63 +41,43 @@ export const TeacherStudents = () => {
 
   const fetchStudents = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      const mockStudents: Student[] = [
-        {
-          id: '1',
-          name: 'John Doe',
-          email: 'john@example.com',
-          avatar: 'https://ui-avatars.com/api/?name=John+Doe&background=0D8ABC&color=fff',
-          progress: 85,
-          coursesCompleted: 4,
-          totalCourses: 6,
-          lastActive: '2024-01-15T10:30:00Z',
-          status: 'active',
-          averageScore: 92,
-          streak: 12
-        },
-        {
-          id: '2',
-          name: 'Jane Smith',
-          email: 'jane@example.com',
-          avatar: 'https://ui-avatars.com/api/?name=Jane+Smith&background=7C3AED&color=fff',
-          progress: 45,
-          coursesCompleted: 2,
-          totalCourses: 6,
-          lastActive: '2024-01-12T14:20:00Z',
-          status: 'struggling',
-          averageScore: 68,
-          streak: 3
-        },
-        {
-          id: '3',
-          name: 'Mike Johnson',
-          email: 'mike@example.com',
-          avatar: 'https://ui-avatars.com/api/?name=Mike+Johnson&background=059669&color=fff',
-          progress: 95,
-          coursesCompleted: 5,
-          totalCourses: 6,
-          lastActive: '2024-01-14T16:45:00Z',
-          status: 'active',
-          averageScore: 88,
-          streak: 25
-        },
-        {
-          id: '4',
-          name: 'Sarah Wilson',
-          email: 'sarah@example.com',
-          avatar: 'https://ui-avatars.com/api/?name=Sarah+Wilson&background=DC2626&color=fff',
-          progress: 30,
-          coursesCompleted: 1,
-          totalCourses: 6,
-          lastActive: '2024-01-08T09:15:00Z',
-          status: 'inactive',
-          averageScore: 75,
-          streak: 0
-        }
-      ];
-      
-      setStudents(mockStudents);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Authentication error:', authError);
+        return;
+      }
+
+      // Fetch students using the teacher student progress view
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('teacher_student_progress_view')
+        .select('*')
+        .eq('teacher_id', user.id);
+
+      if (studentsError) {
+        console.error('Error fetching students:', studentsError);
+        return;
+      }
+
+      // Transform the data to match our Student interface
+      const transformedStudents: Student[] = studentsData.map((student: any) => ({
+        id: student.student_id,
+        name: student.student_name,
+        email: student.student_email,
+        avatar: student.student_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(student.student_name)}&background=0D8ABC&color=fff`,
+        progress: Math.round(student.progress_percentage || 0),
+        coursesCompleted: student.course_completed ? 1 : 0,
+        totalCourses: 1, // This represents the current course they're enrolled in with this teacher
+        lastActive: student.last_accessed || new Date().toISOString(),
+        status: student.last_accessed && new Date(student.last_accessed) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) 
+          ? 'active' 
+          : student.progress_percentage < 30 
+            ? 'struggling' 
+            : 'inactive',
+        averageScore: Math.round(student.average_quiz_score || 0),
+        streak: student.streak_count || 0
+      }));
+
+      setStudents(transformedStudents);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching students:', error);

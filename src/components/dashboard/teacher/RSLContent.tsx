@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { DashboardLayout } from '../../layout/DashboardLayout';
+import { useAuth } from '../../../contexts/AuthContext';
+import { TeacherService } from '../../../lib/teacher-service';
 
 interface RSLVideo {
   id: string;
@@ -43,6 +45,7 @@ interface VideoStats {
 }
 
 export const TeacherRSLContent = () => {
+  const { user } = useAuth();
   const [videos, setVideos] = useState<RSLVideo[]>([]);
   const [filteredVideos, setFilteredVideos] = useState<RSLVideo[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -64,115 +67,18 @@ export const TeacherRSLContent = () => {
 
   const fetchRSLVideos = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      const mockVideos: RSLVideo[] = [
-        {
-          id: '1',
-          title: 'Numbers 1-10 in RSL',
-          description: 'Learn to sign numbers 1 through 10 in Rwanda Sign Language',
-          videoUrl: '/rsl_videos/numbers-1-10.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400',
-          duration: 180, // 3 minutes
-          category: 'numbers',
-          difficulty: 'beginner',
-          tags: ['numbers', 'basic', 'counting', 'foundation'],
-          signDescription: 'Clear demonstration of hand positions and movements for each number',
-          relatedConcepts: ['counting', 'basic arithmetic', 'number recognition'],
-          viewCount: 234,
-          likes: 45,
-          status: 'published',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-05T00:00:00Z',
-          instructor: 'Jean Baptiste Munyanziza',
-          course: 'Basic Mathematics with RSL',
-          courseId: '1'
-        },
-        {
-          id: '2',
-          title: 'Addition Signs and Concepts',
-          description: 'Mathematical addition operations using Rwanda Sign Language',
-          videoUrl: '/rsl_videos/addition-concepts.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1596495577886-d920f1fb7238?w=400',
-          duration: 300, // 5 minutes
-          category: 'mathematics',
-          difficulty: 'intermediate',
-          tags: ['addition', 'mathematics', 'operations', 'problem-solving'],
-          transcript: 'Welcome to addition in RSL. Today we will learn...',
-          signDescription: 'Step-by-step demonstration of addition signs with visual examples',
-          relatedConcepts: ['arithmetic', 'problem solving', 'mathematical operations'],
-          viewCount: 189,
-          likes: 38,
-          status: 'published',
-          createdAt: '2024-01-03T00:00:00Z',
-          updatedAt: '2024-01-08T00:00:00Z',
-          instructor: 'Marie Claire Uwimana',
-          course: 'Basic Mathematics with RSL',
-          courseId: '1'
-        },
-        {
-          id: '3',
-          title: 'Geometric Shapes Vocabulary',
-          description: 'Common geometric shapes and their RSL signs',
-          videoUrl: '/rsl_videos/geometric-shapes.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400',
-          duration: 240, // 4 minutes
-          category: 'words',
-          difficulty: 'beginner',
-          tags: ['geometry', 'shapes', 'vocabulary', 'visual'],
-          signDescription: 'Visual representation of various geometric shapes with corresponding signs',
-          relatedConcepts: ['geometry', 'spatial awareness', 'shape recognition'],
-          viewCount: 156,
-          likes: 29,
-          status: 'published',
-          createdAt: '2024-01-10T00:00:00Z',
-          updatedAt: '2024-01-12T00:00:00Z',
-          instructor: 'Patrick Nzeyimana',
-          course: 'Geometry Fundamentals',
-          courseId: '3'
-        },
-        {
-          id: '4',
-          title: 'Complex Algebra Expressions',
-          description: 'Advanced algebraic expressions and equation solving in RSL',
-          videoUrl: '/rsl_videos/algebra-expressions.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1632571401005-458e9d244591?w=400',
-          duration: 420, // 7 minutes
-          category: 'mathematics',
-          difficulty: 'advanced',
-          tags: ['algebra', 'expressions', 'equations', 'advanced'],
-          signDescription: 'Complex mathematical expressions broken down into clear RSL signs',
-          relatedConcepts: ['algebraic thinking', 'equation solving', 'abstract concepts'],
-          viewCount: 87,
-          likes: 21,
-          status: 'draft',
-          createdAt: '2024-01-15T00:00:00Z',
-          updatedAt: '2024-01-16T00:00:00Z',
-          instructor: 'Solange Mukamana',
-          course: 'Advanced Algebra Concepts',
-          courseId: '2'
-        },
-        {
-          id: '5',
-          title: 'Mathematical Phrases and Questions',
-          description: 'Common mathematical phrases and how to ask questions in RSL',
-          videoUrl: '/rsl_videos/math-phrases.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1635070041409-e63e783398d4?w=400',
-          duration: 360, // 6 minutes
-          category: 'phrases',
-          difficulty: 'intermediate',
-          tags: ['phrases', 'questions', 'communication', 'interaction'],
-          signDescription: 'Interactive phrases for mathematical discussions and problem solving',
-          relatedConcepts: ['communication', 'questioning', 'mathematical discourse'],
-          viewCount: 203,
-          likes: 42,
-          status: 'published',
-          createdAt: '2024-01-08T00:00:00Z',
-          updatedAt: '2024-01-10T00:00:00Z',
-          instructor: 'Emmanuel Habimana'
-        }
-      ];
       
-      setVideos(mockVideos);
+      if (!user) return;
+
+      const teacherService = new TeacherService(user.id);
+      const rslData = await teacherService.getRSLContent(
+        searchTerm,
+        categoryFilter === 'all' ? undefined : categoryFilter,
+        difficultyFilter === 'all' ? undefined : difficultyFilter,
+        statusFilter === 'all' ? undefined : statusFilter
+      );
+      
+      setVideos(rslData);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching RSL videos:', error);

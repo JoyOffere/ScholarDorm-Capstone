@@ -48,15 +48,57 @@ export const TeacherDashboard = () => {
 
   const fetchTeacherStats = async () => {
     try {
-      // Mock data for now - replace with actual API calls
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Authentication error:', authError);
+        return;
+      }
+
+      // Fetch teacher dashboard summary from our database view
+      const { data: dashboardData, error: dashboardError } = await supabase
+        .from('teacher_dashboard_summary')
+        .select('*')
+        .eq('teacher_id', user.id)
+        .single();
+
+      if (dashboardError) {
+        console.error('Error fetching dashboard data:', dashboardError);
+        return;
+      }
+
+      // Fetch additional stats
+      const { data: courseStats, error: courseError } = await supabase
+        .from('teacher_course_analytics')
+        .select('average_quiz_score, total_quiz_attempts')
+        .eq('teacher_id', user.id);
+
+      if (courseError) {
+        console.error('Error fetching course stats:', courseError);
+      }
+
+      // Calculate average score from course analytics
+      const avgScore = courseStats && courseStats.length > 0 
+        ? Math.round(courseStats.reduce((sum, course) => sum + (course.average_quiz_score || 0), 0) / courseStats.length)
+        : 0;
+
+      // Fetch pending assignments (gradebook entries without grades)
+      const { data: pendingData, error: pendingError } = await supabase
+        .from('teacher_gradebook')
+        .select('id')
+        .eq('teacher_id', user.id)
+        .is('points_earned', null);
+
+      const pendingCount = pendingData?.length || 0;
+
       setStats({
-        totalStudents: 45,
-        totalCourses: 8,
-        totalQuizzes: 24,
-        averageScore: 78,
-        pendingAssignments: 12,
-        activeStudents: 38
+        totalStudents: dashboardData?.total_students || 0,
+        totalCourses: dashboardData?.assigned_courses || 0,
+        totalQuizzes: dashboardData?.created_quizzes || 0,
+        averageScore: avgScore,
+        pendingAssignments: pendingCount,
+        activeStudents: dashboardData?.active_students || 0
       });
+
     } catch (error) {
       console.error('Error fetching teacher stats:', error);
     }
@@ -64,33 +106,120 @@ export const TeacherDashboard = () => {
 
   const fetchRecentActivity = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      setRecentActivity([
-        {
-          id: '1',
-          type: 'quiz_submission',
-          student: 'John Doe',
-          description: 'Completed Mathematics Quiz 5',
-          timestamp: '2024-01-15T10:30:00Z',
-          status: 'completed'
-        },
-        {
-          id: '2',
-          type: 'question',
-          student: 'Jane Smith',
-          description: 'Asked about RSL signs in lesson 3',
-          timestamp: '2024-01-15T09:15:00Z',
-          status: 'needs_review'
-        },
-        {
-          id: '3',
-          type: 'course_completion',
-          student: 'Mike Johnson',
-          description: 'Finished Basic Algebra course',
-          timestamp: '2024-01-14T16:45:00Z',
-          status: 'completed'
-        }
-      ]);
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('Authentication error:', authError);
+        return;
+      }
+
+      // Fetch recent student progress from our teacher view
+      const { data: progressData, error: progressError } = await supabase
+        .from('teacher_student_progress_view')
+        .select(`
+          student_name,
+          course_title,
+          progress_percentage,
+          course_completed,
+          last_accessed,
+          average_quiz_score
+        `)
+        .eq('teacher_id', user.id)
+        .order('last_accessed', { ascending: false, nullsFirst: false })
+        .limit(10);
+
+      if (progressError) {
+        console.error('Error fetching progress data:', progressError);
+      }
+
+      // Fetch recent quiz attempts
+      const { data: quizData, error: quizError } = await supabase
+        .rpc('get_teacher_recent_quiz_attempts', { teacher_uuid: user.id });
+
+      if (quizError) {
+        console.error('Error fetching quiz data:', quizError);
+      }
+
+      // Fetch recent messages as activity
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('teacher_messages')
+        .select(`
+          id,
+          subject,
+          created_at,
+          is_read,
+          student_id,
+          users!student_id(full_name)
+        `)
+        .eq('teacher_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (messagesError) {
+        console.error('Error fetching messages data:', messagesError);
+      }
+
+      // Convert to activity format
+      const activities: RecentActivity[] = [];
+
+      // Add progress activities
+      if (progressData) {
+        progressData.forEach((progress, index) => {
+          if (progress.course_completed) {
+            activities.push({
+              id: `progress-${index}`,
+              type: 'course_completion',
+              student: progress.student_name,
+              description: `Completed ${progress.course_title}`,
+              timestamp: progress.last_accessed || new Date().toISOString(),
+              status: 'completed'
+            });
+          } else if (progress.progress_percentage > 0) {
+            activities.push({
+              id: `progress-update-${index}`,
+              type: 'assignment',
+              student: progress.student_name,
+              description: `${Math.round(progress.progress_percentage)}% progress in ${progress.course_title}`,
+              timestamp: progress.last_accessed || new Date().toISOString(),
+              status: 'pending'
+            });
+          }
+        });
+      }
+
+      // Add quiz activities
+      if (quizData) {
+        quizData.forEach((quiz: any) => {
+          activities.push({
+            id: `quiz-${quiz.id}`,
+            type: 'quiz_submission',
+            student: quiz.student_name,
+            description: `Completed "${quiz.quiz_title}" - ${Math.round(quiz.percentage)}%`,
+            timestamp: quiz.completed_at,
+            status: quiz.is_passed ? 'completed' : 'needs_review'
+          });
+        });
+      }
+
+      // Add message activities
+      if (messagesData) {
+        messagesData.forEach((message: any) => {
+          activities.push({
+            id: `message-${message.id}`,
+            type: 'question',
+            student: message.users?.full_name || 'Unknown Student',
+            description: message.subject,
+            timestamp: message.created_at,
+            status: message.is_read ? 'completed' : 'needs_review'
+          });
+        });
+      }
+
+      // Sort by timestamp and take the most recent
+      const sortedActivities = activities
+        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+        .slice(0, 8);
+
+      setRecentActivity(sortedActivities);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching recent activity:', error);
@@ -107,8 +236,8 @@ export const TeacherDashboard = () => {
       bgColor: 'bg-blue-50',
       textColor: 'text-blue-600',
       subtext: 'Enrolled students',
-      trend: '+5',
-      trendColor: 'text-green-500',
+      trend: `${stats.activeStudents} active`,
+      trendColor: 'text-blue-500',
     },
     {
       title: 'Active Courses',
@@ -117,8 +246,8 @@ export const TeacherDashboard = () => {
       color: 'from-green-500 to-green-600',
       bgColor: 'bg-green-50',
       textColor: 'text-green-600',
-      subtext: 'Published courses',
-      trend: '+2',
+      subtext: 'Assigned courses',
+      trend: 'Teaching now',
       trendColor: 'text-green-500',
     },
     {
@@ -129,19 +258,19 @@ export const TeacherDashboard = () => {
       bgColor: 'bg-purple-50',
       textColor: 'text-purple-600',
       subtext: 'Assessment tools',
-      trend: '+8',
-      trendColor: 'text-green-500',
+      trend: 'Available',
+      trendColor: 'text-purple-500',
     },
     {
       title: 'Average Score',
-      value: `${stats.averageScore}%`,
+      value: stats.averageScore > 0 ? `${stats.averageScore}%` : 'N/A',
       icon: <BarChart3 size={24} />,
       color: 'from-orange-500 to-orange-600',
       bgColor: 'bg-orange-50',
       textColor: 'text-orange-600',
       subtext: 'Class performance',
-      trend: '+3%',
-      trendColor: 'text-green-500',
+      trend: stats.pendingAssignments > 0 ? `${stats.pendingAssignments} pending` : 'Up to date',
+      trendColor: stats.pendingAssignments > 0 ? 'text-orange-500' : 'text-green-500',
     }
   ];
 

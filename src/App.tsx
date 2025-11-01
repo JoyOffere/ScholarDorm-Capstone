@@ -523,10 +523,85 @@ const AppContent: React.FC = () => {
           } 
         />
         <Route 
+          path="/teacher/courses/create" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create Course</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Course creation functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
           path="/teacher/quizzes" 
           element={
             <RequireRole requiredRole="teacher">
               <TeacherQuizzes />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/quizzes/create" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create Quiz</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Quiz creation functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/quizzes/review" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Review Quizzes</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Quiz review functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/content/create" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create Content</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Content creation functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/activity" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Activity Dashboard</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Activity tracking functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
             </RequireRole>
           } 
         />
@@ -547,10 +622,79 @@ const AppContent: React.FC = () => {
           } 
         />
         <Route 
+          path="/teacher/rsl-content/create" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create RSL Content</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">RSL content creation functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
           path="/teacher/progress" 
           element={
             <RequireRole requiredRole="teacher">
-              <TeacherProgress />
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Progress Reports</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Progress reporting functionality is being updated...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/messages" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <div className="min-h-screen bg-gray-50 p-6">
+                <div className="max-w-4xl mx-auto">
+                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Messages</h1>
+                  <div className="bg-white rounded-lg shadow p-6">
+                    <p className="text-gray-600">Messaging functionality coming soon...</p>
+                  </div>
+                </div>
+              </div>
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/announcements" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <AdminAnnouncements />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/notifications" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <StudentNotifications />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/profile" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <StudentProfile />
+            </RequireRole>
+          } 
+        />
+        <Route 
+          path="/teacher/settings" 
+          element={
+            <RequireRole requiredRole="teacher">
+              <StudentSettings />
             </RequireRole>
           } 
         />

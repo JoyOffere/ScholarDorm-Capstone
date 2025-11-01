@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { DashboardLayout } from '../../layout/DashboardLayout';
+import { useAuth } from '../../../contexts/AuthContext';
+import { TeacherService } from '../../../lib/teacher-service';
 
 interface ContentItem {
   id: string;
@@ -39,6 +41,7 @@ interface Folder {
 }
 
 export const TeacherContent = () => {
+  const { user } = useAuth();
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [filteredItems, setFilteredItems] = useState<ContentItem[]>([]);
@@ -61,100 +64,17 @@ export const TeacherContent = () => {
 
   const fetchContent = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      const mockContent: ContentItem[] = [
-        {
-          id: '1',
-          title: 'Addition Basics Video',
-          description: 'Introduction to basic addition with RSL demonstrations',
-          type: 'rsl_video',
-          url: '/videos/addition-basics.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400',
-          size: 52428800, // 50MB
-          course: 'Basic Mathematics with RSL',
-          courseId: '1',
-          lesson: 'Lesson 1: Basic Addition',
-          lessonId: '1',
-          tags: ['mathematics', 'addition', 'rsl', 'beginner'],
-          status: 'published',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-05T00:00:00Z',
-          downloadCount: 45,
-          viewCount: 123,
-          category: 'Mathematics'
-        },
-        {
-          id: '2',
-          title: 'Subtraction Worksheet',
-          description: 'Practice worksheet for subtraction problems',
-          type: 'document',
-          url: '/documents/subtraction-worksheet.pdf',
-          size: 2097152, // 2MB
-          course: 'Basic Mathematics with RSL',
-          courseId: '1',
-          lesson: 'Lesson 2: Basic Subtraction',
-          lessonId: '2',
-          tags: ['mathematics', 'subtraction', 'worksheet', 'practice'],
-          status: 'published',
-          createdAt: '2024-01-03T00:00:00Z',
-          updatedAt: '2024-01-03T00:00:00Z',
-          downloadCount: 67,
-          viewCount: 89,
-          category: 'Mathematics'
-        },
-        {
-          id: '3',
-          title: 'Algebra Concepts Presentation',
-          description: 'Comprehensive presentation on algebraic concepts',
-          type: 'document',
-          url: '/documents/algebra-presentation.pptx',
-          size: 15728640, // 15MB
-          course: 'Advanced Algebra Concepts',
-          courseId: '2',
-          tags: ['algebra', 'presentation', 'advanced', 'concepts'],
-          status: 'published',
-          createdAt: '2023-12-20T00:00:00Z',
-          updatedAt: '2024-01-08T00:00:00Z',
-          downloadCount: 34,
-          viewCount: 56,
-          category: 'Mathematics'
-        },
-        {
-          id: '4',
-          title: 'Geometric Shapes RSL Guide',
-          description: 'Visual guide showing RSL signs for geometric shapes',
-          type: 'rsl_video',
-          url: '/videos/geometric-shapes-rsl.mp4',
-          thumbnailUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400',
-          size: 41943040, // 40MB
-          course: 'Geometry Fundamentals',
-          courseId: '3',
-          tags: ['geometry', 'shapes', 'rsl', 'visual'],
-          status: 'draft',
-          createdAt: '2024-01-15T00:00:00Z',
-          updatedAt: '2024-01-16T00:00:00Z',
-          downloadCount: 0,
-          viewCount: 12,
-          category: 'Mathematics'
-        },
-        {
-          id: '5',
-          title: 'Number Recognition Audio',
-          description: 'Audio guide for number recognition and pronunciation',
-          type: 'audio',
-          url: '/audio/number-recognition.mp3',
-          size: 8388608, // 8MB
-          tags: ['numbers', 'audio', 'pronunciation', 'recognition'],
-          status: 'published',
-          createdAt: '2024-01-10T00:00:00Z',
-          updatedAt: '2024-01-10T00:00:00Z',
-          downloadCount: 23,
-          viewCount: 45,
-          category: 'Mathematics'
-        }
-      ];
       
-      setContentItems(mockContent);
+      if (!user) return;
+
+      const teacherService = new TeacherService(user.id);
+      const contentData = await teacherService.getContent(
+        searchTerm,
+        typeFilter === 'all' ? undefined : typeFilter,
+        statusFilter === 'all' ? undefined : statusFilter
+      );
+      
+      setContentItems(contentData);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching content:', error);

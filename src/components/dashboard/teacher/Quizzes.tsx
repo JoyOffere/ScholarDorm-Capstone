@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { DashboardLayout } from '../../layout/DashboardLayout';
+import { useAuth } from '../../../contexts/AuthContext';
+import { TeacherService } from '../../../lib/teacher-service';
 
 interface Quiz {
   id: string;
@@ -30,6 +32,7 @@ interface Quiz {
 }
 
 export const TeacherQuizzes = () => {
+  const { user } = useAuth();
   const [quizzes, setQuizzes] = useState<Quiz[]>([]);
   const [filteredQuizzes, setFilteredQuizzes] = useState<Quiz[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -47,87 +50,16 @@ export const TeacherQuizzes = () => {
 
   const fetchQuizzes = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      const mockQuizzes: Quiz[] = [
-        {
-          id: '1',
-          title: 'Basic Addition and Subtraction',
-          description: 'Test your understanding of basic arithmetic operations',
-          course: 'Basic Mathematics with RSL',
-          courseId: '1',
-          totalQuestions: 15,
-          timeLimit: 30,
-          attempts: 45,
-          averageScore: 78,
-          participants: 25,
-          status: 'published',
-          createdAt: '2024-01-05T00:00:00Z',
-          updatedAt: '2024-01-10T00:00:00Z',
-          difficulty: 'easy',
-          category: 'Mathematics',
-          passingScore: 70,
-          type: 'practice'
-        },
-        {
-          id: '2',
-          title: 'Algebra Mid-term Assessment',
-          description: 'Comprehensive assessment covering algebraic concepts',
-          course: 'Advanced Algebra Concepts',
-          courseId: '2',
-          totalQuestions: 25,
-          timeLimit: 60,
-          attempts: 32,
-          averageScore: 85,
-          participants: 18,
-          status: 'published',
-          createdAt: '2023-12-20T00:00:00Z',
-          updatedAt: '2024-01-08T00:00:00Z',
-          difficulty: 'hard',
-          category: 'Mathematics',
-          passingScore: 75,
-          type: 'assessment'
-        },
-        {
-          id: '3',
-          title: 'Geometry Shapes Quiz',
-          description: 'Interactive quiz about basic geometric shapes',
-          course: 'Geometry Fundamentals',
-          courseId: '3',
-          totalQuestions: 12,
-          timeLimit: 20,
-          attempts: 0,
-          averageScore: 0,
-          participants: 0,
-          status: 'draft',
-          createdAt: '2024-01-15T00:00:00Z',
-          updatedAt: '2024-01-16T00:00:00Z',
-          difficulty: 'medium',
-          category: 'Mathematics',
-          passingScore: 80,
-          type: 'practice'
-        },
-        {
-          id: '4',
-          title: 'Final Mathematics Exam',
-          description: 'Comprehensive final examination covering all course topics',
-          course: 'Basic Mathematics with RSL',
-          courseId: '1',
-          totalQuestions: 50,
-          timeLimit: 120,
-          attempts: 23,
-          averageScore: 82,
-          participants: 23,
-          status: 'published',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-12T00:00:00Z',
-          difficulty: 'hard',
-          category: 'Mathematics',
-          passingScore: 80,
-          type: 'final'
-        }
-      ];
+      if (!user) return;
+
+      const teacherService = new TeacherService(user.id);
+      const quizzesData = await teacherService.getQuizzes(
+        searchTerm, 
+        statusFilter === 'all' ? undefined : statusFilter,
+        typeFilter === 'all' ? undefined : typeFilter
+      );
       
-      setQuizzes(mockQuizzes);
+      setQuizzes(quizzesData);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching quizzes:', error);

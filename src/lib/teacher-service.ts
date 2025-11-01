@@ -212,7 +212,7 @@ export class TeacherService {
   async getQuizzes(searchTerm?: string, statusFilter?: string, typeFilter?: string): Promise<TeacherQuiz[]> {
     try {
       let query = supabase
-        .from('quizzes')
+        .from('enhanced_quizzes')
         .select(`
           *,
           lessons!inner(

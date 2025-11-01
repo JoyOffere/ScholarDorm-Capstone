@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { DashboardLayout } from '../../layout/DashboardLayout';
+import { useAuth } from '../../../contexts/AuthContext';
+import { TeacherService } from '../../../lib/teacher-service';
 
 interface Course {
   id: string;
@@ -27,6 +29,7 @@ interface Course {
 }
 
 export const TeacherCourses = () => {
+  const { user } = useAuth();
   const [courses, setCourses] = useState<Course[]>([]);
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,59 +46,12 @@ export const TeacherCourses = () => {
 
   const fetchCourses = async () => {
     try {
-      // Mock data for now - replace with actual API calls
-      const mockCourses: Course[] = [
-        {
-          id: '1',
-          title: 'Basic Mathematics with RSL',
-          description: 'Introduction to mathematics concepts using Rwanda Sign Language',
-          thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400',
-          totalLessons: 12,
-          completedLessons: 8,
-          enrolledStudents: 25,
-          averageProgress: 67,
-          averageRating: 4.5,
-          status: 'published',
-          createdAt: '2024-01-01T00:00:00Z',
-          updatedAt: '2024-01-10T00:00:00Z',
-          category: 'Mathematics',
-          difficulty: 'beginner'
-        },
-        {
-          id: '2',
-          title: 'Advanced Algebra Concepts',
-          description: 'Complex algebraic equations and problem-solving techniques',
-          thumbnail: 'https://images.unsplash.com/photo-1596495577886-d920f1fb7238?w=400',
-          totalLessons: 15,
-          completedLessons: 15,
-          enrolledStudents: 18,
-          averageProgress: 89,
-          averageRating: 4.8,
-          status: 'published',
-          createdAt: '2023-12-15T00:00:00Z',
-          updatedAt: '2024-01-05T00:00:00Z',
-          category: 'Mathematics',
-          difficulty: 'advanced'
-        },
-        {
-          id: '3',
-          title: 'Geometry Fundamentals',
-          description: 'Basic geometry concepts with visual RSL explanations',
-          thumbnail: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?w=400',
-          totalLessons: 10,
-          completedLessons: 3,
-          enrolledStudents: 0,
-          averageProgress: 0,
-          averageRating: 0,
-          status: 'draft',
-          createdAt: '2024-01-12T00:00:00Z',
-          updatedAt: '2024-01-14T00:00:00Z',
-          category: 'Mathematics',
-          difficulty: 'intermediate'
-        }
-      ];
+      if (!user) return;
+
+      const teacherService = new TeacherService(user.id);
+      const coursesData = await teacherService.getCourses(searchTerm, statusFilter === 'all' ? undefined : statusFilter);
       
-      setCourses(mockCourses);
+      setCourses(coursesData);
       setIsLoading(false);
     } catch (error) {
       console.error('Error fetching courses:', error);
