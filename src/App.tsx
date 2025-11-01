@@ -43,6 +43,8 @@ import {
   TeacherRSLContent,
   TeacherProgress
 } from './components/dashboard/teacher';
+import { TeacherQuizCreate } from './components/dashboard/teacher/QuizCreate';
+import { TeacherContentCreate } from './components/dashboard/teacher/ContentCreate';
 import { TermsOfService } from './components/legal/TermsOfService';
 import { PrivacyPolicy } from './components/legal/PrivacyPolicy';
 import { RSLPage } from './components/accessibility/RSLPage';
@@ -549,14 +551,7 @@ const AppContent: React.FC = () => {
           path="/teacher/quizzes/create" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create Quiz</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Quiz creation functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherQuizCreate />
             </RequireRole>
           } 
         />
@@ -579,14 +574,7 @@ const AppContent: React.FC = () => {
           path="/teacher/content/create" 
           element={
             <RequireRole requiredRole="teacher">
-              <div className="min-h-screen bg-gray-50 p-6">
-                <div className="max-w-4xl mx-auto">
-                  <h1 className="text-2xl font-bold text-gray-900 mb-6">Create Content</h1>
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <p className="text-gray-600">Content creation functionality coming soon...</p>
-                  </div>
-                </div>
-              </div>
+              <TeacherContentCreate />
             </RequireRole>
           } 
         />

@@ -224,6 +224,13 @@ export const TeacherContent = () => {
             <p className="text-gray-600">Manage your educational content and resources</p>
           </div>
           <div className="flex items-center space-x-3">
+            <Link
+              to="/teacher/content/create"
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+            >
+              <Plus size={16} />
+              <span>Create Content</span>
+            </Link>
             <label className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors cursor-pointer flex items-center space-x-2">
               <Upload size={16} />
               <span>Upload Content</span>
