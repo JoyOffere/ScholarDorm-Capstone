@@ -225,7 +225,10 @@ export const TeacherProgress = () => {
         // Process each course enrollment
         studentEnrollments.forEach(enrollment => {
           const courseId = enrollment.course_id;
-          const courseName = teacherCourses?.find(tc => tc.course_id === courseId)?.courses?.[0]?.title || 'Unknown Course';
+          const teacherCourse = teacherCourses?.find(tc => tc.course_id === courseId);
+          const courseName = Array.isArray(teacherCourse?.courses) 
+            ? (teacherCourse.courses as any)[0]?.title || 'Unknown Course'
+            : (teacherCourse?.courses as any)?.title || 'Unknown Course';
           
           // Get lessons for this course
           const courseLessons = courseSections
@@ -377,7 +380,9 @@ export const TeacherProgress = () => {
 
         return {
           courseId: tc.course_id,
-          courseName: tc.courses?.[0]?.title || 'Unknown Course',
+          courseName: Array.isArray(tc.courses) 
+            ? (tc.courses as any)[0]?.title || 'Unknown Course'
+            : (tc.courses as any)?.title || 'Unknown Course',
           enrolledStudents: courseStudents.length,
           averageProgress: avgProgress,
           averageScore: avgScore,

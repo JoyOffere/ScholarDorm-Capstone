@@ -114,7 +114,7 @@ export const TeacherCourseAnalytics = () => {
             last_accessed_at,
             time_spent_minutes,
             is_completed,
-            users (id, name, email, avatar_url)
+            users (id, full_name, email, avatar_url)
           )
         `)
         .eq('id', courseId)
@@ -191,7 +191,7 @@ export const TeacherCourseAnalytics = () => {
 
         return {
           id: uc.user_id,
-          name: userData?.name || 'Unknown',
+          name: userData?.full_name || 'Unknown',
           email: userData?.email || '',
           avatar: userData?.avatar_url || '',
           progress: uc.progress_percentage || 0,
