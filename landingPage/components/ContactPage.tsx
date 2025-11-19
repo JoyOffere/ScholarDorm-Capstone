@@ -17,25 +17,25 @@ const contactMethods = [
     icon: <MailIcon className="w-6 h-6" />,
     title: 'Email Us',
     description: 'Send us a detailed message',
-    contact: 'support@scholardorm.com',
+    contact: 'j.offere@alustudent.com',
   },
   {
     icon: <PhoneIcon className="w-6 h-6" />,
     title: 'Call Us',
     description: 'Speak with our support team',
-    contact: '+1 (555) 123-4567',
+    contact: '+2349068425021',
   },
   {
     icon: <MapPinIcon className="w-6 h-6" />,
     title: 'Visit Us',
     description: 'Our office location',
-    contact: '123 Education St, Learning City, LC 12345',
+    contact: 'ALU Rwanda',
   },
   {
     icon: <ClockIcon className="w-6 h-6" />,
     title: 'Business Hours',
     description: 'When you can reach us',
-    contact: 'Mon-Fri: 9AM-6PM EST',
+    contact: 'Mon-Fri: 9AM-6PM CAT',
   },
   {
     icon: <MessageCircleIcon className="w-6 h-6" />,
@@ -47,7 +47,7 @@ const contactMethods = [
     icon: <SendIcon className="w-6 h-6" />,
     title: 'RSL Support',
     description: 'Specialized assistance',
-    contact: 'rsl@scholardorm.com',
+    contact: 'j.offere@gmail.com',
   },
 ]
 

@@ -30,9 +30,9 @@ const testimonials = [
   {
     id: 3,
     content:
-      "The platform's gamification elements make learning fun and competitive. My students are more motivated than ever to complete their assignments.",
-    author: 'Marie Claire Uwase',
-    role: 'Primary School Teacher',
+      "The platform's gamification elements make learning fun and competitive. My students are more motivated and their morale boast to complete their assignments.",
+    author: 'Sister Josse',
+    role: 'School Administrator',
     gender: 'female',
     rating: 4,
   },
