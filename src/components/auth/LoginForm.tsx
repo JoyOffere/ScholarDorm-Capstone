@@ -82,7 +82,7 @@ export const LoginForm: React.FC = () => {
     setLoginError(null);
   };
 
-  // Check if user account exists
+  // Checks if user account exists
   const checkUserExists = async (email: string): Promise<boolean> => {
     try {
       const { data, error } = await supabase

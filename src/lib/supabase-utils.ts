@@ -847,15 +847,19 @@ export const getChartDataUltraFast = async (): Promise<DashboardChartData> => {
 // Fast enrollment trend using aggregated queries
 async function generateEnrollmentTrendFast(): Promise<Array<{ date: string; enrollments: number }>> {
   try {
+    // Get enrollments from the last 30 days using the correct table and field names
     const { data, error } = await supabase
-      .from('user_courses')
-      .select('enrolled_at')
-      .gte('enrolled_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
-      .order('enrolled_at', { ascending: false });
+      .from('course_enrollments')
+      .select('enrollment_date')
+      .gte('enrollment_date', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+      .order('enrollment_date', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('Error fetching enrollment data:', error);
+      throw error;
+    }
 
-    // Group by date on client side for speed
+    // Initialize date groups for the last 30 days
     const dateGroups: { [key: string]: number } = {};
     
     for (let i = 29; i >= 0; i--) {
@@ -865,19 +869,27 @@ async function generateEnrollmentTrendFast(): Promise<Array<{ date: string; enro
       dateGroups[dateStr] = 0;
     }
 
-    data?.forEach((item: any) => {
-      const dateStr = new Date(item.enrolled_at).toISOString().split('T')[0];
-      if (dateGroups.hasOwnProperty(dateStr)) {
-        dateGroups[dateStr]++;
+    // Count enrollments by date
+    data?.forEach((enrollment: any) => {
+      if (enrollment.enrollment_date) {
+        const dateStr = new Date(enrollment.enrollment_date).toISOString().split('T')[0];
+        if (dateGroups.hasOwnProperty(dateStr)) {
+          dateGroups[dateStr]++;
+        }
       }
     });
 
-    return Object.entries(dateGroups).map(([date, enrollments]) => ({
-      date,
-      enrollments
-    }));
+    // Convert to array format expected by the chart
+    const trendData = Object.entries(dateGroups)
+      .map(([date, enrollments]) => ({
+        date: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        enrollments
+      }));
+
+    console.log('✅ Generated real enrollment trend data:', trendData);
+    return trendData;
   } catch (error) {
-    console.error('Error generating enrollment trend:', error);
+    console.error('❌ Error generating enrollment trend, using sample data:', error);
     return generateSampleEnrollmentTrend();
   }
 }
@@ -1044,6 +1056,7 @@ export interface StudentAnnouncement {
   content: string;
   created_at: string;
   urgency: 'low' | 'medium' | 'high';
+  author_name?: string;
 }
 
 export interface StudentQuiz {
@@ -1063,47 +1076,51 @@ export const getStudentDashboardStatsUltraFast = async (userId: string): Promise
     return cached;
   }
 
-  // INSTANT DISPLAY: Return sample stats immediately
-  const sampleStats: StudentDashboardStats = {
-    totalCourses: 5,
-    completedCourses: 2,
-    currentStreak: 7,
-    totalBadges: 3,
-    weeklyProgress: 75,
-    studyTimeThisWeek: 12.5,
-    quizzesCompleted: 8,
-    averageScore: 85
-  };
+  try {
+    // Get all data in parallel - REAL DATA ONLY
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
 
-  setCache(cacheKey, sampleStats, 30000); // Cache for 30 seconds
+    const [userStats, enrollmentStats, badgeStats, quizAttempts, weeklyActivities, timeTracking] = await Promise.all([
+      supabase.from('users').select('streak_count').eq('id', userId).single(),
+      supabase.from('user_courses').select('completed').eq('user_id', userId),
+      supabase.from('user_badges').select('id', getFastQueryOptions()).eq('user_id', userId),
+      supabase.from('enhanced_quiz_attempts').select('score, is_passed').eq('user_id', userId),
+      supabase.from('activities').select('id', getFastQueryOptions()).eq('user_id', userId).gte('created_at', weekAgo.toISOString()),
+      supabase.from('time_tracking').select('minutes_spent').eq('user_id', userId).gte('created_at', weekAgo.toISOString())
+    ]);
 
-  // Background loading (non-blocking)
-  setTimeout(async () => {
-    try {
-      const [userStats, enrollmentStats, badgeStats] = await Promise.all([
-        supabase.from('users').select('streak_count').eq('id', userId).single(),
-        supabase.from('user_courses').select('completed').eq('user_id', userId),
-        supabase.from('user_badges').select('id', getFastQueryOptions()).eq('user_id', userId)
-      ]);
+    // Calculate real stats
+    const quizData = quizAttempts.data || [];
+    const studyTimeData = timeTracking.data || [];
+    
+    const realStats: StudentDashboardStats = {
+      totalCourses: enrollmentStats.data?.length || 0,
+      completedCourses: enrollmentStats.data?.filter((c: any) => c.completed).length || 0,
+      currentStreak: userStats.data?.streak_count || 0,
+      totalBadges: badgeStats.count || 0,
+      weeklyProgress: weeklyActivities.count || 0,
+      studyTimeThisWeek: studyTimeData.reduce((total, entry) => total + (entry.minutes_spent || 0), 0),
+      quizzesCompleted: quizData.length,
+      averageScore: quizData.length > 0 ? Math.round(quizData.reduce((sum, attempt) => sum + attempt.score, 0) / quizData.length) : 0
+    };
 
-      const realStats: StudentDashboardStats = {
-        totalCourses: enrollmentStats.data?.length || 0,
-        completedCourses: enrollmentStats.data?.filter((c: any) => c.completed).length || 0,
-        currentStreak: userStats.data?.streak_count || 0,
-        totalBadges: badgeStats.count || 0,
-        weeklyProgress: Math.floor(Math.random() * 100), // Sample calculation
-        studyTimeThisWeek: Math.floor(Math.random() * 20), // Sample calculation
-        quizzesCompleted: Math.floor(Math.random() * 15), // Sample calculation
-        averageScore: 75 + Math.floor(Math.random() * 25) // Sample calculation
-      };
-
-      setCache(cacheKey, realStats, CACHE_TTL);
-    } catch (error) {
-      console.log('Background student stats loading failed:', error);
-    }
-  }, 300);
-
-  return sampleStats;
+    setCache(cacheKey, realStats, CACHE_TTL);
+    return realStats;
+  } catch (error) {
+    console.error('Error loading student stats:', error);
+    // Return zeros instead of mock data
+    return {
+      totalCourses: 0,
+      completedCourses: 0,
+      currentStreak: 0,
+      totalBadges: 0,
+      weeklyProgress: 0,
+      studyTimeThisWeek: 0,
+      quizzesCompleted: 0,
+      averageScore: 0
+    };
+  }
 };
 
 // Ultra-fast student courses
@@ -1114,65 +1131,40 @@ export const getStudentCoursesUltraFast = async (userId: string, limit: number =
     return cached;
   }
 
-  // INSTANT DISPLAY: Return sample courses immediately
-  const sampleCourses: StudentCourse[] = [
-    {
-      id: '1',
-      title: 'Mathematics S2',
-      image_url: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400',
-      progress: 75,
-      last_accessed: new Date().toISOString()
-    },
-    {
-      id: '2',
-      title: 'Physics Basics',
-      image_url: 'https://images.unsplash.com/photo-1636466497217-26a8cbeaf0aa?w=400',
-      progress: 40,
-      last_accessed: new Date(Date.now() - 86400000).toISOString()
-    },
-    {
-      id: '3',
-      title: 'Chemistry 101',
-      image_url: 'https://images.unsplash.com/photo-1554475901-4538ddfbccc2?w=400',
-      progress: 90,
-      last_accessed: new Date(Date.now() - 172800000).toISOString()
+  try {
+    // Load real data immediately
+    const { data, error } = await supabase
+      .from('user_courses')
+      .select(`
+        id,
+        progress_percentage,
+        last_accessed,
+        course_id,
+        courses!inner(id, title, image_url)
+      `)
+      .eq('user_id', userId)
+      .order('last_accessed', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error loading courses:', error);
+      return [];
     }
-  ];
 
-  setCache(cacheKey, sampleCourses, 30000);
-
-  // Background loading
-  setTimeout(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('user_courses')
-        .select(`
-          id,
-          progress_percentage,
-          last_accessed,
-          course_id,
-          courses!inner(id, title, image_url)
-        `)
-        .eq('user_id', userId)
-        .order('last_accessed', { ascending: false })
-        .limit(limit);
-
-      if (!error && data) {
-        const realCourses: StudentCourse[] = data.map((item: any) => ({
-          id: item.courses.id,
-          title: item.courses.title,
-          image_url: item.courses.image_url || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400',
-          progress: item.progress_percentage || 0,
-          last_accessed: item.last_accessed
-        }));
-        setCache(cacheKey, realCourses, CACHE_TTL);
-      }
-    } catch (error) {
-      console.log('Background courses loading failed:', error);
-    }
-  }, 400);
-
-  return sampleCourses;
+    const realCourses: StudentCourse[] = (data || []).map((item: any) => ({
+      id: item.courses.id,
+      title: item.courses.title,
+      image_url: item.courses.image_url || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=400',
+      progress: item.progress_percentage || 0,
+      last_accessed: item.last_accessed
+    }));
+    
+    setCache(cacheKey, realCourses, CACHE_TTL);
+    return realCourses;
+  } catch (error) {
+    console.error('Error loading courses:', error);
+    return [];
+  }
 };
 
 // Ultra-fast student announcements
@@ -1183,60 +1175,43 @@ export const getStudentAnnouncementsUltraFast = async (limit: number = 3): Promi
     return cached;
   }
 
-  // INSTANT DISPLAY: Return sample announcements
-  const sampleAnnouncements: StudentAnnouncement[] = [
-    {
-      id: '1',
-      title: 'New Math Course Available!',
-      content: 'We\'ve added advanced mathematics content to help you excel.',
-      created_at: new Date().toISOString(),
-      urgency: 'medium'
-    },
-    {
-      id: '2',
-      title: 'Weekly Study Challenge',
-      content: 'Join this week\'s study challenge and earn bonus points!',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      urgency: 'low'
-    },
-    {
-      id: '3',
-      title: 'Platform Maintenance',
-      content: 'Scheduled maintenance this weekend from 2-4 AM.',
-      created_at: new Date(Date.now() - 172800000).toISOString(),
-      urgency: 'high'
+  try {
+    // Load real data immediately
+    const { data, error } = await supabase
+      .from('posts')
+      .select(`
+        id, 
+        title, 
+        content, 
+        created_at,
+        post_type,
+        author:users!author_id(full_name)
+      `)
+      .eq('is_published', true)
+      .or('target_audience.eq.all,target_audience.eq.students')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error('Error loading announcements:', error);
+      return [];
     }
-  ];
 
-  setCache(cacheKey, sampleAnnouncements, 60000); // Cache for 1 minute
-
-  // Background loading
-  setTimeout(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('posts')
-        .select('id, title, content, created_at')
-        .eq('is_published', true)
-        .eq('target_audience', 'all')
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (!error && data) {
-        const realAnnouncements: StudentAnnouncement[] = data.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          content: item.content,
-          created_at: item.created_at,
-          urgency: 'medium'
-        }));
-        setCache(cacheKey, realAnnouncements, CACHE_TTL);
-      }
-    } catch (error) {
-      console.log('Background announcements loading failed:', error);
-    }
-  }, 500);
-
-  return sampleAnnouncements;
+    const realAnnouncements: StudentAnnouncement[] = (data || []).map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      content: item.content,
+      created_at: item.created_at,
+      urgency: item.post_type === 'announcement' ? 'high' : 'medium',
+      author_name: item.author?.full_name
+    }));
+    
+    setCache(cacheKey, realAnnouncements, CACHE_TTL);
+    return realAnnouncements;
+  } catch (error) {
+    console.error('Error loading announcements:', error);
+    return [];
+  }
 };
 
 // Ultra-fast student quizzes
@@ -1247,56 +1222,73 @@ export const getStudentQuizzesUltraFast = async (userId: string): Promise<Studen
     return cached;
   }
 
-  // INSTANT DISPLAY: Return sample quizzes
-  const sampleQuizzes: StudentQuiz[] = [
-    {
-      id: '1',
-      title: 'Algebra Basics Quiz',
-      course_title: 'Mathematics S2',
-      questions_count: 10,
-      completed: true,
-      score: 85
-    },
-    {
-      id: '2',
-      title: 'Newton\'s Laws Quiz',
-      course_title: 'Physics Basics',
-      questions_count: 8,
-      completed: false
-    },
-    {
-      id: '3',
-      title: 'Chemical Equations',
-      course_title: 'Chemistry 101',
-      questions_count: 12,
-      completed: true,
-      score: 92
+  try {
+    // Get quizzes from courses the user is enrolled in - REAL DATA ONLY
+    const { data, error } = await supabase
+      .from('user_courses')
+      .select(`
+        courses!inner(
+          id,
+          title,
+          quizzes(
+            id,
+            title,
+            questions_count
+          )
+        )
+      `)
+      .eq('user_id', userId);
+
+    if (error) {
+      console.error('Error loading quizzes:', error);
+      return [];
     }
-  ];
 
-  setCache(cacheKey, sampleQuizzes, 30000);
+    const allQuizzes: any[] = [];
+    (data || []).forEach((userCourse: any) => {
+      if (userCourse.courses?.quizzes) {
+        userCourse.courses.quizzes.forEach((quiz: any) => {
+          allQuizzes.push({
+            ...quiz,
+            course_title: userCourse.courses.title
+          });
+        });
+      }
+    });
 
-  // Background loading
-  setTimeout(async () => {
-    try {
-      // This would require a more complex query based on your quiz schema
-      // For now, return the sample data
-      setCache(cacheKey, sampleQuizzes, CACHE_TTL);
-    } catch (error) {
-      console.log('Background quizzes loading failed:', error);
-    }
-  }, 600);
+    // Get user's quiz attempts to determine completion status
+    const { data: attempts } = await supabase
+      .from('enhanced_quiz_attempts')
+      .select('quiz_id, score, is_passed')
+      .eq('user_id', userId);
 
-  return sampleQuizzes;
+    const realQuizzes: StudentQuiz[] = allQuizzes.slice(0, 5).map((quiz: any) => {
+      const attempt = attempts?.find(a => a.quiz_id === quiz.id);
+      return {
+        id: quiz.id,
+        title: quiz.title,
+        course_title: quiz.course_title,
+        questions_count: quiz.questions_count || 0,
+        completed: !!attempt,
+        score: attempt?.score
+      };
+    });
+
+    setCache(cacheKey, realQuizzes, CACHE_TTL);
+    return realQuizzes;
+  } catch (error) {
+    console.error('Error loading quizzes:', error);
+    return [];
+  }
 };
 
-// Get all student dashboard data in one optimized call
+// Get all student dashboard data - REAL DATA ONLY
 export const getAllStudentDashboardDataUltraFast = async (userId: string) => {
-  console.log('⚡ Loading STUDENT dashboard with INSTANT display...');
+  console.log('📊 Loading REAL student dashboard data...');
   
   const startTime = performance.now();
   
-  // INSTANT LOADING: All functions return immediately with sample data
+  // REAL DATA LOADING: All functions return actual database data
   const [stats, courses, announcements, quizzes] = await Promise.all([
     getStudentDashboardStatsUltraFast(userId),
     getStudentCoursesUltraFast(userId, 3),
@@ -1305,8 +1297,7 @@ export const getAllStudentDashboardDataUltraFast = async (userId: string) => {
   ]);
 
   const endTime = performance.now();
-  console.log(`⚡ Student dashboard displayed instantly in ${(endTime - startTime).toFixed(2)}ms`);
-  console.log('📚 Real student data loading in background...');
+  console.log(`✅ Real student dashboard loaded in ${(endTime - startTime).toFixed(2)}ms`);
 
   return {
     stats,

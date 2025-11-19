@@ -23,9 +23,9 @@ interface SessionEvent {
 type SessionEventListener = (event: SessionEvent) => void;
 
 class SessionDaemon {
-  private intervalId: NodeJS.Timeout | null = null;
-  private heartbeatId: NodeJS.Timeout | null = null;
-  private cleanupId: NodeJS.Timeout | null = null;
+  private intervalId: number | null = null;
+  private heartbeatId: number | null = null;
+  private cleanupId: number | null = null;
   private listeners: Set<SessionEventListener> = new Set();
   private isRunning = false;
   private retryCount = 0;

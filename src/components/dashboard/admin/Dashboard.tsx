@@ -18,7 +18,7 @@ import {
 import { useAuth } from '../../../contexts/AuthContext';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts';
 
-// Types are now imported from supabase-utils
+// Types are imported from supabase-utils
 
 export const AdminDashboard: React.FC = () => {
   const { user, session } = useAuth();

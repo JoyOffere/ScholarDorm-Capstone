@@ -61,7 +61,7 @@ export const Slideshow: React.FC = () => {
     setIsPlaying(prev => !prev);
   };
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: number;
     if (isPlaying && !isTransitioning) {
       interval = setInterval(() => {
         nextSlide();

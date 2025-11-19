@@ -275,13 +275,35 @@ export const StudentDashboard: React.FC = () => {
       if (activitiesError) throw new Error(`Failed to fetch weekly activities: ${activitiesError.message || 'Unknown error'}`);
 
       if (mountedRef.current) {
+        // Get study time for this week from time tracking data
+        const weekStart = new Date();
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay()); // Start of current week (Sunday)
+        weekStart.setHours(0, 0, 0, 0);
+
+        const timeTrackingQuery = supabase
+          .from('time_tracking')
+          .select('minutes_spent')
+          .eq('user_id', userId)
+          .gte('created_at', weekStart.toISOString());
+
+        const { data: timeTrackingData, error: timeTrackingError } = signal
+          ? await timeTrackingQuery.abortSignal(signal)
+          : await timeTrackingQuery;
+
+        let studyTimeThisWeek = 0;
+        if (timeTrackingError) {
+          console.warn('Failed to fetch study time data:', timeTrackingError.message);
+        } else if (timeTrackingData) {
+          studyTimeThisWeek = timeTrackingData.reduce((total, entry) => total + (entry.minutes_spent || 0), 0);
+        }
+
         setDashboardStats({
           totalCourses: totalCourses || 0,
           completedCourses: completedCourses || 0,
           currentStreak: userProfile?.streak_count || 0,
           totalBadges: totalBadges || 0,
           weeklyProgress: weeklyActivities || 0,
-          studyTimeThisWeek: Math.floor(Math.random() * 480) + 60, // Placeholder - would need actual time tracking
+          studyTimeThisWeek,
           quizzesCompleted,
           averageScore
         });
@@ -570,7 +592,7 @@ export const StudentDashboard: React.FC = () => {
                           {announcement.content}
                         </p>
                         <div className="mt-1 text-xs text-gray-500">
-                          By Administrator
+                          By {announcement.author_name || 'Administrator'}
                         </div>
                       </div>
                     </div>
