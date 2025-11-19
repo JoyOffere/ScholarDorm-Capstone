@@ -31,7 +31,7 @@ export const WelcomeModal = () => {
       icon: <StarIcon className="w-14 h-14 text-yellow-500" />,
       title: 'Start Your Journey',
       description:
-        'Join thousands of learners by creating your free account and transforming your education today.',
+        'Join learners by creating your free account and transforming your education today.',
     },
   ];
 
