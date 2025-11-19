@@ -126,12 +126,12 @@ export const PrivacyPolicy: React.FC = () => {
                 </Section>
 
                 <Section id="information" title="2. Information We Collect" setActiveSection={setActiveSection}>
-                  <p>We collect several types of information from and about users of our platform, including:</p>
+                  <p>Collection of several types of information from and about users for the purpose of this study, include:</p>
                   <ul className="list-disc pl-6 space-y-2">
                     <li><strong>Personal Data:</strong> Name, email address, phone number, and other identifiers</li>
                     <li><strong>Profile Data:</strong> Username, password, preferences, feedback, and survey responses</li>
                     <li><strong>Usage Data:</strong> Information about how you use our platform, courses accessed, and time spent</li>
-                    <li><strong>Technical Data:</strong> IP address, browser type, device information, and cookies</li>
+                    <li><strong>Technical Data:</strong> Browser type, and device information</li>
                     <li><strong>Educational Data:</strong> Course progress, quiz results, and achievements</li>
                   </ul>
                 </Section>
