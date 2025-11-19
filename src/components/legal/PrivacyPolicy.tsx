@@ -114,7 +114,7 @@ export const PrivacyPolicy: React.FC = () => {
                   Privacy Policy
                 </h1>
                 <p className="text-gray-500 mt-2 text-sm">
-                  Last updated: June 1, 2023
+                  Last updated: November, 2025
                 </p>
               </div>
 
@@ -148,60 +148,59 @@ export const PrivacyPolicy: React.FC = () => {
                 </Section>
 
                 <Section id="sharing" title="4. Data Sharing and Disclosure" setActiveSection={setActiveSection}>
-                  <p>We may share your information with:</p>
+                  <p> Your information would only be shared with:</p>
                   <ul className="list-disc pl-6 space-y-2">
-                    <li>Service providers who perform services on our behalf</li>
+                    <li>Service providers who areworking to bridge this gap</li>
                     <li>Educational institutions or partners with your consent</li>
-                    <li>Legal authorities when required by law</li>
-                    <li>In connection with a business transaction such as a merger or acquisition</li>
+                    <li>Legal authorities with in Rwandan when required by law</li>
                   </ul>
                   <p className="mt-4">We do not sell your personal information to third parties.</p>
                 </Section>
 
                 <Section id="security" title="5. Data Security" setActiveSection={setActiveSection}>
                   <p>
-                    We implement appropriate technical and organizational measures to protect your personal data against unauthorized access, alteration, disclosure, or destruction. Our platform uses HTTPS encryption for all data transmissions and employs secure authentication mechanisms to prevent web attacks. However, no method of transmission over the Internet or electronic storage is 100% secure, and we cannot guarantee absolute security.
+                    We implement appropriate technical and organizational measures guided by the African Leadership University to protect your personal data against unauthorized access, alteration, disclosure, or destruction. The platform uses HTTPS encryption, and hashed for all data transmissions and employs secure authentication mechanisms to prevent web attacks. However, the github repository for this project 100% secured, and you guarantee absolute security.
                   </p>
                 </Section>
 
                 <Section id="rights" title="6. Your Data Rights" setActiveSection={setActiveSection}>
                   <p>Depending on your location, you may have the following rights regarding your personal data:</p>
                   <ul className="list-disc pl-6 space-y-2">
-                    <li>Access and receive a copy of your data</li>
+                    <li>Access and receive a copy of your data through your personalised dashboard</li>
                     <li>Correct inaccurate or incomplete data</li>
                     <li>Request deletion of your data</li>
-                    <li>Restrict or object to processing of your data</li>
-                    <li>Data portability</li>
+                    <li>Restrict or object to processing of your data at any time upon request</li>
+        
                   </ul>
                 </Section>
 
                 <Section id="children" title="7. Children’s Privacy" setActiveSection={setActiveSection}>
                   <p>
-                    Our platform is designed for users of all ages, including children. We take additional steps to protect children's privacy and comply with applicable laws. Our platform features visual interfaces that accommodate deaf/hard-of-hearing users, ensuring accessibility for all. Parents or guardians can review, edit, or request deletion of their child's information by contacting us.
+                    Our platform is designed for users of all ages, including children. We take additional steps to protect children's privacy and comply with Global data and privacy protection Law for minors laws. Our platform features visual interfaces that accommodate deaf/hard-of-hearing users, ensuring accessibility for all. 
                   </p>
                 </Section>
 
                 <Section id="cookies" title="8. Cookies and Tracking Technologies" setActiveSection={setActiveSection}>
                   <p>
-                    We use cookies and similar tracking technologies to track activity on our platform and hold certain information. You can instruct your browser to refuse all cookies or to indicate when a cookie is being sent.
+                    Technologies  are integrated to track activity on our platform and hold certain information.
                   </p>
                 </Section>
 
                 <Section id="changes" title="9. Changes to This Privacy Policy" setActiveSection={setActiveSection}>
                   <p>
-                    We may update our Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date.
+                    Should this Privacy Policy be updated, you will notify you of any changes by posting the new Privacy Policy on this page and updating the "Last updated" date.
                   </p>
                 </Section>
 
                 <Section id="contact" title="10. Contact Us" setActiveSection={setActiveSection}>
                   <p>
-                    If you have any questions about this Privacy Policy, please contact us at{' '}
+                    If you have any questions about this Privacy Policy, please contact us at{''}
                     <a
-                      href="mailto:privacy@scholardorm.com"
+                      href="mailto:j.offere@alustudent.com"
                       className="text-blue-600 hover:underline focus:outline-none focus:underline"
                       aria-label="Email ScholarDorm support"
                     >
-                      privacy@scholardorm.com
+                      j.offere@alustudent.com
                     </a>.
                   </p>
                 </Section>
@@ -224,7 +223,7 @@ export const PrivacyPolicy: React.FC = () => {
           className="mt-12 text-center"
         >
           <p className="text-gray-500 text-sm">
-            &copy; 2023 ScholarDorm. All rights reserved.
+            &copy; 2025 ScholarDorm. All rights reserved.
           </p>
         </motion.div>
       </div>
