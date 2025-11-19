@@ -180,9 +180,9 @@ export const PrivacyPolicy: React.FC = () => {
                   </p>
                 </Section>
 
-                <Section id="cookies" title="8. Cookies and Tracking Technologies" setActiveSection={setActiveSection}>
+                <Section id="cookies" title="8. Tracking Technologies" setActiveSection={setActiveSection}>
                   <p>
-                    Technologies  are integrated to track activity on our platform and hold certain information.
+                    Technologies are integrated to track activity on the platform and retain helpful information for teachers to support students basd on their engagement history information.
                   </p>
                 </Section>
 
@@ -196,11 +196,11 @@ export const PrivacyPolicy: React.FC = () => {
                   <p>
                     If you have any questions about this Privacy Policy, please contact us at{''}
                     <a
-                      href="mailto:j.offere@alustudent.com"
+                      href="mailto: j.offere@alustudent.com"
                       className="text-blue-600 hover:underline focus:outline-none focus:underline"
                       aria-label="Email ScholarDorm support"
                     >
-                      j.offere@alustudent.com
+                       j.offere@alustudent.com
                     </a>.
                   </p>
                 </Section>
