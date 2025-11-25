@@ -103,10 +103,24 @@ export const QuizAttempt: React.FC = () => {
   const [lessonRslVideoUrl, setLessonRslVideoUrl] = useState<string | null>(null);
   const [showQuestionRSL, setShowQuestionRSL] = useState(false);
   const [currentQuestionRSL, setCurrentQuestionRSL] = useState<QuizQuestion | null>(null);
+  const [previewQuestionEmbedUrl, setPreviewQuestionEmbedUrl] = useState<string>('');
   const [questionRSLWatched, setQuestionRSLWatched] = useState<Record<string, boolean>>({});
   const [pendingQuestionIndex, setPendingQuestionIndex] = useState<number | null>(null);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const timerRef = useRef<number | null>(null);
+  const [showInlineQuestionRSL, setShowInlineQuestionRSL] = useState(true);
+  const lessonModalRef = useRef<HTMLDivElement | null>(null);
+  const questionModalRef = useRef<HTMLDivElement | null>(null);
+
+  // Click-debugging is off by default; enable only when actively debugging
+  const [rslClickDebugEnabled, setRslClickDebugEnabled] = useState(false);
+  const [lastClickInfo, setLastClickInfo] = useState<{
+    x: number;
+    y: number;
+    targetDesc: string;
+    insideLessonModal: boolean;
+    insideQuestionModal: boolean;
+  } | null>(null);
 
   // Debug function to check RSL state (available in browser console)
   (window as any).debugRSL = () => {
@@ -139,6 +153,37 @@ export const QuizAttempt: React.FC = () => {
     console.groupEnd();
   };
 
+  useEffect(() => {
+    // Click capture for RSL debugging (toggleable)
+    if (!rslClickDebugEnabled) return;
+    const handler = (ev: MouseEvent) => {
+      try {
+        const t = ev.target as HTMLElement | null;
+        const targetDesc = t ? `${t.tagName.toLowerCase()}${t.id ? `#${t.id}` : ''}${t.className ? `.${String(t.className).replace(/\s+/g, '.')}` : ''}` : 'unknown';
+        const rect = t?.getBoundingClientRect ? t.getBoundingClientRect() : { x: ev.clientX, y: ev.clientY } as any;
+        const insideLessonModal = lessonModalRef.current ? lessonModalRef.current.contains(t) : false;
+        const insideQuestionModal = questionModalRef.current ? questionModalRef.current.contains(t) : false;
+        console.log('🔍 [RSL DEBUG] Click captured', { x: ev.clientX, y: ev.clientY, target: targetDesc, insideLessonModal, insideQuestionModal });
+        setLastClickInfo({ x: ev.clientX, y: ev.clientY, targetDesc, insideLessonModal, insideQuestionModal });
+      } catch (e) {
+        console.warn('🔍 [RSL DEBUG] Click capture error', e);
+      }
+    };
+    document.addEventListener('click', handler, true);
+    return () => document.removeEventListener('click', handler, true);
+  }, [rslClickDebugEnabled]);
+
+  const modalDebugClass = (type: 'lesson' | 'question') => {
+    if (!rslClickDebugEnabled) return '';
+    const base = 'ring-2 ring-offset-2';
+    if (lastClickInfo) {
+      if (type === 'lesson') {
+        return lastClickInfo.insideLessonModal ? `${base} ring-green-400` : `${base} ring-yellow-300`;
+      }
+      return lastClickInfo.insideQuestionModal ? `${base} ring-green-400` : `${base} ring-blue-300`;
+    }
+    return type === 'lesson' ? `${base} ring-yellow-300` : `${base} ring-blue-300`;
+  };
   useEffect(() => {
     const fetchQuizData = async () => {
       try {
@@ -459,9 +504,9 @@ export const QuizAttempt: React.FC = () => {
   useEffect(() => {
     if (questions && questions.length > 0 && currentQuestionIndex >= 0) {
       const question = questions[currentQuestionIndex];
-      
-      // IMMEDIATE RSL detection - no delays or extra conditions
-      if (question?.rsl_video_url && !questionRSLWatched[question.id]) {
+
+      // IMMEDIATE RSL detection - show question RSL whenever the question has an RSL URL
+      if (question?.rsl_video_url) {
         console.log('🚀 [RSL DEBUG] IMMEDIATE RSL trigger for question:', question.id);
         setCurrentQuestionRSL(question);
         setShowQuestionRSL(true);
@@ -481,7 +526,7 @@ export const QuizAttempt: React.FC = () => {
       [questionId]: answer
     }));
   };
-  const navigateToQuestion = (index: number) => {
+  const navigateToQuestion = (index: number, suppressAutoRsl: boolean = false) => {
     if (index >= 0 && index < questions.length) {
       // Track time spent on current question before navigating
       if (questionStartTime && questions[currentQuestionIndex]) {
@@ -504,18 +549,56 @@ export const QuizAttempt: React.FC = () => {
       
       // Update question index
       setCurrentQuestionIndex(index);
+
+      // Precompute the embed URL for inline or modal RSL to reduce delay
+      const newQuestion = questions[index];
+      if (newQuestion?.rsl_video_url) {
+        try {
+          setPreviewQuestionEmbedUrl(convertToEmbedUrl(newQuestion.rsl_video_url || ''));
+        } catch (e) {
+          setPreviewQuestionEmbedUrl(newQuestion.rsl_video_url || '');
+        }
+      } else {
+        setPreviewQuestionEmbedUrl('');
+      }
       
       // Set new question start time
       setQuestionStartTime(Date.now());
       
-      // IMMEDIATELY check for RSL video and show it
+      // IMMEDIATELY check for RSL video and show it unless suppressed
       const question = questions[index];
-      if (question?.rsl_video_url && !questionRSLWatched[question.id]) {
+      if (!suppressAutoRsl && question?.rsl_video_url) {
         console.log('🚀 [RSL DEBUG] INSTANT RSL trigger on navigation to question:', index + 1);
         setCurrentQuestionRSL(question);
         setShowQuestionRSL(true);
         setPendingQuestionIndex(index);
       }
+    }
+  };
+
+  // When Next is clicked, show next question's RSL first (popup). Only navigate after user watches/skips.
+  const handleNextClick = () => {
+    console.log('➡️ [RSL DEBUG] handleNextClick invoked', { currentQuestionIndex, totalQuestions: questions.length });
+    const nextIndex = currentQuestionIndex + 1;
+    if (nextIndex >= questions.length) return;
+    const nextQuestion = questions[nextIndex];
+    if (nextQuestion?.rsl_video_url) {
+      // Advance the quiz content immediately so the question updates behind the modal,
+      // but suppress the auto-popup that would re-open the modal from navigateToQuestion.
+      navigateToQuestion(nextIndex, true);
+      // Now set up the modal for the next question (content is already advanced)
+      setCurrentQuestionRSL(nextQuestion);
+      // precompute/embed url immediately to avoid render delay
+      try {
+        setPreviewQuestionEmbedUrl(convertToEmbedUrl(nextQuestion.rsl_video_url || ''));
+      } catch (e) {
+        setPreviewQuestionEmbedUrl(nextQuestion.rsl_video_url || '');
+      }
+      setShowQuestionRSL(true);
+      // No need to set pendingQuestionIndex because we've already navigated
+      setPendingQuestionIndex(null);
+    } else {
+      navigateToQuestion(nextIndex);
     }
   };
 
@@ -548,10 +631,31 @@ export const QuizAttempt: React.FC = () => {
     if (currentQuestion && currentQuestion.rsl_video_url) {
       console.log('🚀 [RSL DEBUG] INSTANT RSL modal setup:', currentQuestion.rsl_video_url);
       // IMMEDIATE state updates - no delays
+      // Ensure any lesson/quiz modal is closed when opening a question modal
+      setShowRSLVideo(false);
       setCurrentQuestionRSL(currentQuestion);
+      try {
+        setPreviewQuestionEmbedUrl(convertToEmbedUrl(currentQuestion.rsl_video_url || ''));
+      } catch (e) {
+        setPreviewQuestionEmbedUrl(currentQuestion.rsl_video_url || '');
+      }
       setShowQuestionRSL(true);
     }
   };
+
+  // Whenever a question RSL is set, precompute the embed URL and ensure lesson modal is closed
+  useEffect(() => {
+    if (!currentQuestionRSL) return;
+    setShowRSLVideo(false);
+    try {
+      const embed = convertToEmbedUrl(currentQuestionRSL.rsl_video_url || '');
+      setPreviewQuestionEmbedUrl(embed);
+      console.log('🎬 [RSL DEBUG] Prepared question embed URL:', { questionId: currentQuestionRSL.id, embed });
+    } catch (e) {
+      setPreviewQuestionEmbedUrl(currentQuestionRSL.rsl_video_url || '');
+      console.log('🎬 [RSL DEBUG] Prepared question embed fallback URL:', { questionId: currentQuestionRSL.id, url: currentQuestionRSL.rsl_video_url });
+    }
+  }, [currentQuestionRSL]);
 
   const handleQuestionRSLWatched = () => {
     console.log('✅ [RSL DEBUG] FAST RSL completion');
@@ -564,6 +668,13 @@ export const QuizAttempt: React.FC = () => {
     // IMMEDIATE modal close
     setShowQuestionRSL(false);
     setCurrentQuestionRSL(null);
+    // If Next was pending and different from current question, navigate to it now.
+    if (pendingQuestionIndex !== null && pendingQuestionIndex !== currentQuestionIndex) {
+      const target = pendingQuestionIndex;
+      setPendingQuestionIndex(null);
+      navigateToQuestion(target);
+      return;
+    }
     setPendingQuestionIndex(null);
   };
 
@@ -578,7 +689,24 @@ export const QuizAttempt: React.FC = () => {
     // IMMEDIATE modal close
     setShowQuestionRSL(false);
     setCurrentQuestionRSL(null);
+    // If Next was pending and different from current question, navigate to it now.
+    if (pendingQuestionIndex !== null && pendingQuestionIndex !== currentQuestionIndex) {
+      const target = pendingQuestionIndex;
+      setPendingQuestionIndex(null);
+      navigateToQuestion(target);
+      return;
+    }
     setPendingQuestionIndex(null);
+  };
+
+  // Unified wrapper for marking watched and continuing — added to ensure button clicks are handled inline
+  const handleMarkWatchedAndContinue = (opts?: { question?: boolean }) => {
+    console.log('➡️ [RSL DEBUG] handleMarkWatchedAndContinue called', opts || {});
+    if (opts?.question) {
+      handleQuestionRSLWatched();
+    } else {
+      handleRSLVideoWatched();
+    }
   };
 
 
@@ -1170,7 +1298,7 @@ export const QuizAttempt: React.FC = () => {
                 <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
               </div>
               <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div ref={lessonModalRef} className={`inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full ${modalDebugClass('lesson')}`}>
                 <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-900">
@@ -1235,7 +1363,7 @@ export const QuizAttempt: React.FC = () => {
                       Skip Video
                     </button>
                     <button
-                      onClick={handleRSLVideoWatched}
+                      onClick={(e) => { e.stopPropagation(); console.log('🖱️ [RSL DEBUG] Quiz-level Mark as Watched clicked'); handleMarkWatchedAndContinue({ question: false }); }}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                     >
                       <CheckCircleIcon size={16} className="mr-2" />
@@ -1256,7 +1384,7 @@ export const QuizAttempt: React.FC = () => {
                 <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
               </div>
               <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-              <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div ref={questionModalRef} className={`inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full ${modalDebugClass('question')}`}>
                 <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                   <div className="flex justify-between items-center mb-4">
                     <h3 className="text-lg font-medium text-gray-900">
@@ -1276,25 +1404,13 @@ export const QuizAttempt: React.FC = () => {
                     </p>
                     {currentQuestionRSL?.rsl_video_url ? (
                       <div className="relative w-full bg-gray-100 rounded-xl overflow-hidden shadow-lg" style={{ aspectRatio: '16 / 9' }}>
-                        {(() => {
-                          const convertedUrl = convertToEmbedUrl(currentQuestionRSL.rsl_video_url);
-                          console.log('🎬 [RSL DEBUG] Question RSL Modal iframe:', {
-                            originalUrl: currentQuestionRSL.rsl_video_url,
-                            convertedUrl,
-                            questionIndex: currentQuestionIndex + 1,
-                            questionId: currentQuestionRSL.id
-                          });
-                          return null;
-                        })()}
                         <iframe
                           className="w-full h-full"
-                          src={convertToEmbedUrl(currentQuestionRSL.rsl_video_url)}
+                          src={previewQuestionEmbedUrl || convertToEmbedUrl(currentQuestionRSL.rsl_video_url || '')}
                           title={`RSL Video for Question ${currentQuestionIndex + 1}`}
                           frameBorder="0"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           allowFullScreen
-                          onLoad={() => console.log('✅ [RSL DEBUG] Question RSL video iframe loaded successfully')}
-                          onError={(e) => console.error('❌ [RSL DEBUG] Question RSL video iframe failed to load:', e)}
                         ></iframe>
                       </div>
                     ) : (
@@ -1316,7 +1432,8 @@ export const QuizAttempt: React.FC = () => {
                       Skip Video
                     </button>
                     <button
-                      onClick={handleQuestionRSLWatched}
+                      onMouseDown={(e) => { e.stopPropagation(); /* faster response on mouse down */ handleMarkWatchedAndContinue({ question: true }); }}
+                      onClick={(e) => { e.stopPropagation(); /* keep click for accessibility */ }}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
                     >
                       <CheckCircleIcon size={16} className="mr-2" />
@@ -1361,7 +1478,7 @@ export const QuizAttempt: React.FC = () => {
                   <ArrowLeftIcon size={16} className="mr-1" />
                   Previous
                 </button>
-                <button onClick={() => navigateToQuestion(currentQuestionIndex + 1)} disabled={currentQuestionIndex === questions.length - 1} className={`px-4 py-2 rounded-lg flex items-center ${currentQuestionIndex === questions.length - 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+                <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleNextClick(); }} disabled={currentQuestionIndex === questions.length - 1} className={`px-4 py-2 rounded-lg flex items-center ${currentQuestionIndex === questions.length - 1 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
                   Next
                   <ArrowRightIcon size={16} className="ml-1" />
                 </button>
@@ -1489,6 +1606,20 @@ export const QuizAttempt: React.FC = () => {
               {questions[currentQuestionIndex]?.points === 1 ? 'point' : 'points'}
             </div>
           </div>
+          {questions[currentQuestionIndex]?.rsl_video_url && (
+            <div className="mb-4 flex justify-center">
+              <div className="w-full max-w-xl bg-gray-100 rounded-lg overflow-hidden shadow-sm" style={{ height: 220 }}>
+                <iframe
+                  className="w-full h-full"
+                  src={previewQuestionEmbedUrl || convertToEmbedUrl(questions[currentQuestionIndex].rsl_video_url || '')}
+                  title={`Inline RSL Question ${currentQuestionIndex + 1}`}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                ></iframe>
+              </div>
+            </div>
+          )}
           {renderQuestion()}
           <div className="mt-6 flex justify-between">
             <div>
@@ -1506,7 +1637,7 @@ export const QuizAttempt: React.FC = () => {
                       <FlagIcon size={16} className="mr-1" />
                       Submit Quiz
                     </>}
-                </button> : <button onClick={() => navigateToQuestion(currentQuestionIndex + 1)} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
+                </button> : <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleNextClick(); }} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center">
                   Next
                   <ArrowRightIcon size={16} className="ml-1" />
                 </button>}
@@ -1516,3 +1647,4 @@ export const QuizAttempt: React.FC = () => {
       </div>
     </DashboardLayout>;
 };
+

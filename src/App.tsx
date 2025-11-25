@@ -36,7 +36,7 @@ import { AdminPosts } from './components/dashboard/admin/Posts';
 import { AdminContent } from './components/dashboard/admin/Content';
 import { AdminAnalytics } from './components/dashboard/admin/Analytics';
 import { RSLManagement } from './components/dashboard/admin/RSLManagement';
-import { 
+import {
   TeacherDashboard,
   TeacherStudents,
   TeacherCourses,
@@ -76,9 +76,11 @@ import { CareersPage } from '../landingPage/components/CareersPage';
 import { ContactPage } from '../landingPage/components/ContactPage';
 import { SessionDebugPage } from './components/debug/SessionDebugPage';
 
+
 // Main App Content Component that uses AuthContext
 const AppContent: React.FC = () => {
   const { user, session, loading } = useAuth();
+
 
   // Debug: Log auth state changes (only in development and when loading state changes)
   if (import.meta.env.DEV && loading) {
@@ -96,6 +98,7 @@ const AppContent: React.FC = () => {
     duration: 3000
   });
 
+
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
     setToast({
       visible: true,
@@ -105,6 +108,7 @@ const AppContent: React.FC = () => {
     });
   };
 
+
   // Auth Guard component to protect routes
   const RequireAuth = ({ children }: { children: React.ReactNode }) => {
     if (!session) {
@@ -112,6 +116,7 @@ const AppContent: React.FC = () => {
     }
     return <>{children}</>;
   };
+
 
   // Role Guard component to protect role-specific routes
   const RequireRole = ({
@@ -133,11 +138,13 @@ const AppContent: React.FC = () => {
       );
     }
 
+
     // If not signed in, redirect to public root
     if (!session || !user) {
       console.log('RequireRole: No session or user, redirecting to /');
       return <Navigate to="/" replace />;
     }
+
 
     // If role doesn't match, redirect to their dashboard
     if (user.role && user.role !== requiredRole) {
@@ -145,22 +152,24 @@ const AppContent: React.FC = () => {
       return <Navigate to={redirectPath} replace />;
     }
 
+
     return <>{children}</>;
   };
 
+
   return (
     <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <Toast 
-        visible={toast.visible} 
-        message={toast.message} 
-        type={toast.type} 
-        duration={toast.duration} 
-        onClose={() => setToast(prev => ({ ...prev, visible: false }))} 
+      <Toast
+        visible={toast.visible}
+        message={toast.message}
+        type={toast.type}
+        duration={toast.duration}
+        onClose={() => setToast(prev => ({ ...prev, visible: false }))}
       />
-      
-      {/* Chatbot component - available on all pages */}
-      <Chatbot />
-      
+     
+      {/* Chatbot component temporarily disabled for debugging overlay issues */}
+      {false && <Chatbot />}
+     
       <Routes>
         {/* Public routes */}
         <Route
@@ -215,6 +224,7 @@ const AppContent: React.FC = () => {
           }
         />
 
+
         {/* Password reset routes */}
         <Route
           path="/forgot-password"
@@ -249,8 +259,10 @@ const AppContent: React.FC = () => {
           }
         />
 
+
         {/* Auth Callback route */}
         <Route path="/auth/callback" element={<AuthCallback />} />
+
 
         {/* Landing page routes */}
         <Route path="/features" element={<FeaturesPage />} />
@@ -263,433 +275,441 @@ const AppContent: React.FC = () => {
         <Route path="/careers" element={<CareersPage />} />
         <Route path="/contact" element={<ContactPage />} />
 
+
         {/* Legal pages */}
         <Route path="/terms" element={<TermsOfService />} />
         <Route path="/privacy" element={<PrivacyPolicy />} />
 
+
         {/* Accessibility pages */}
         <Route path="/rsl" element={<RSLPage />} />
 
+
         {/* Student routes */}
-        <Route 
-          path="/dashboard" 
+        <Route
+          path="/dashboard"
           element={
             <RequireRole requiredRole="student">
               <StudentDashboard />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/courses" 
+        <Route
+          path="/courses"
           element={
             <RequireRole requiredRole="student">
               <StudentCourses />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/learning" 
+        <Route
+          path="/learning"
           element={
             <RequireRole requiredRole="student">
               <StudentMyLearning />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/quizzes" 
+        <Route
+          path="/quizzes"
           element={
             <RequireRole requiredRole="student">
               <StudentQuizzes />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/quiz/:quizId" 
+        <Route
+          path="/quiz/:quizId"
           element={
             <RequireRole requiredRole="student">
               <QuizAttempt />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/games" 
+        <Route
+          path="/games"
           element={
             <RequireRole requiredRole="student">
               <StudentGames />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/leaderboard" 
+        <Route
+          path="/leaderboard"
           element={
             <RequireRole requiredRole="student">
               <Leaderboard />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/achievements" 
+        <Route
+          path="/achievements"
           element={
             <RequireRole requiredRole="student">
               <StudentAchievements />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/announcements" 
+        <Route
+          path="/announcements"
           element={
             <RequireRole requiredRole="student">
               <StudentAnnouncements />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/profile" 
+        <Route
+          path="/profile"
           element={
             <RequireRole requiredRole="student">
               <StudentProfile />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/settings" 
+        <Route
+          path="/settings"
           element={
             <RequireRole requiredRole="student">
               <StudentSettings />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/notifications" 
+        <Route
+          path="/notifications"
           element={
             <RequireRole requiredRole="student">
               <StudentNotifications />
             </RequireRole>
-          } 
+          }
         />
 
+
         {/* Admin routes */}
-        <Route 
-          path="/admin" 
+        <Route
+          path="/admin"
           element={
             <RequireRole requiredRole="admin">
               <AdminDashboard />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/users" 
+        <Route
+          path="/admin/users"
           element={
             <RequireRole requiredRole="admin">
               <AdminUsers />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/courses" 
+        <Route
+          path="/admin/courses"
           element={
             <RequireRole requiredRole="admin">
               <AdminCourses />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/courses/:courseId/lessons" 
+        <Route
+          path="/admin/courses/:courseId/lessons"
           element={
             <RequireRole requiredRole="admin">
               <AdminLessons />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/rwanda-math" 
-          element={<RwandaMathCourses />} 
+        <Route
+          path="/rwanda-math"
+          element={<RwandaMathCourses />}
         />
-        <Route 
-          path="/admin/quizzes" 
+        <Route
+          path="/admin/quizzes"
           element={
             <RequireRole requiredRole="admin">
               <AdminQuizManagement />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/games" 
+        <Route
+          path="/admin/games"
           element={
             <RequireRole requiredRole="admin">
               <AdminGames />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/posts" 
+        <Route
+          path="/admin/posts"
           element={
             <RequireRole requiredRole="admin">
               <AdminPosts />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/content" 
+        <Route
+          path="/admin/content"
           element={
             <RequireRole requiredRole="admin">
               <AdminContent />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/analytics" 
+        <Route
+          path="/admin/analytics"
           element={
             <RequireRole requiredRole="admin">
               <AdminAnalytics />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/audit-log" 
+        <Route
+          path="/admin/audit-log"
           element={
             <RequireRole requiredRole="admin">
               <AdminAuditLog />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/settings" 
+        <Route
+          path="/admin/settings"
           element={
             <RequireRole requiredRole="admin">
               <AdminSettings />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/profile" 
+        <Route
+          path="/admin/profile"
           element={
             <RequireRole requiredRole="admin">
               <AdminProfile />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/notifications" 
+        <Route
+          path="/admin/notifications"
           element={
             <RequireRole requiredRole="admin">
               <AdminNotifications />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/announcements" 
+        <Route
+          path="/admin/announcements"
           element={
             <RequireRole requiredRole="admin">
               <AdminAnnouncements />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/teacher-assignments" 
+        <Route
+          path="/admin/teacher-assignments"
           element={
             <RequireRole requiredRole="admin">
               <AdminTeacherAssignments />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/announcements/create" 
+        <Route
+          path="/admin/announcements/create"
           element={
             <RequireRole requiredRole="admin">
               <AnnouncementForm mode="create" />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/announcements/:id/edit" 
+        <Route
+          path="/admin/announcements/:id/edit"
           element={
             <RequireRole requiredRole="admin">
               <AnnouncementForm mode="edit" />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/admin/rsl-management" 
+        <Route
+          path="/admin/rsl-management"
           element={
             <RequireRole requiredRole="admin">
               <RSLManagement />
             </RequireRole>
-          } 
+          }
         />
 
+
         {/* Teacher routes */}
-        <Route 
-          path="/teacher" 
+        <Route
+          path="/teacher"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherDashboard />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/students" 
+        <Route
+          path="/teacher/students"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherStudents />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/courses" 
+        <Route
+          path="/teacher/courses"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherCourses />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/courses/create" 
+        <Route
+          path="/teacher/courses/create"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherCourseCreate />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/quizzes" 
+        <Route
+          path="/teacher/quizzes"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherQuizzes />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/quizzes/create" 
+        <Route
+          path="/teacher/quizzes/create"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherQuizCreate />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/quizzes/review" 
+        <Route
+          path="/teacher/quizzes/review"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherQuizReview />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/content/create" 
+        <Route
+          path="/teacher/content/create"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherContentCreate />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/activity" 
+        <Route
+          path="/teacher/activity"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherActivity />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/content" 
+        <Route
+          path="/teacher/content"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherContent />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/rsl-content" 
+        <Route
+          path="/teacher/rsl-content"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherRSLContent />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/rsl-content/create" 
+        <Route
+          path="/teacher/rsl-content/create"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherRSLContentCreate />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/progress" 
+        <Route
+          path="/teacher/progress"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherProgress />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/messages" 
+        <Route
+          path="/teacher/messages"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherMessages />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/announcements" 
+        <Route
+          path="/teacher/announcements"
           element={
             <RequireRole requiredRole="teacher">
               <AdminAnnouncements />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/notifications" 
+        <Route
+          path="/teacher/notifications"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherNotifications />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/profile" 
+        <Route
+          path="/teacher/profile"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherProfile />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/settings" 
+        <Route
+          path="/teacher/settings"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherSettings />
             </RequireRole>
-          } 
+          }
         />
-        <Route 
-          path="/teacher/courses/:courseId/analytics" 
+        <Route
+          path="/teacher/courses/:courseId/analytics"
           element={
             <RequireRole requiredRole="teacher">
               <TeacherCourseAnalytics />
             </RequireRole>
-          } 
+          }
         />
 
+
         {/* Debug route - available to authenticated users in development */}
-        <Route 
-          path="/debug/session" 
+        <Route
+          path="/debug/session"
           element={
             <RequireAuth>
               <SessionDebugPage />
             </RequireAuth>
-          } 
+          }
         />
+
 
         {/* Fallback route */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-      
+     
       <Footer />
     </BrowserRouter>
   );
 };
+
 
 // Main App component with AuthProvider wrapper
 export function App() {
@@ -697,10 +717,11 @@ export function App() {
     console.log(`Toast: ${type.toUpperCase()} - ${message}`);
   };
 
+
   // Validate environment URLs on app startup
   React.useEffect(() => {
     const validation = validateEnvironmentUrls();
-    
+   
     if (!validation.isValid) {
       console.error('❌ Environment URL validation failed:', validation.errors);
       validation.errors.forEach(error => {
@@ -708,7 +729,7 @@ export function App() {
       });
     } else {
       console.log('✅ Environment URLs validated successfully');
-      
+     
       // Debug URL configuration in development
       if (import.meta.env.DEV) {
         debugUrlConfig();
@@ -716,9 +737,10 @@ export function App() {
     }
   }, []);
 
+
   return (
-    <AuthProvider 
-      onInitFallback={() => 
+    <AuthProvider
+      onInitFallback={() =>
         showToast('Network issue: continuing with limited data. If problems persist, try refreshing.', 'info')
       }
     >

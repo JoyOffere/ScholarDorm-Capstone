@@ -1230,10 +1230,10 @@ export const getStudentQuizzesUltraFast = async (userId: string): Promise<Studen
         courses!inner(
           id,
           title,
-          quizzes(
+          enhanced_quizzes(
             id,
             title,
-            questions_count
+            enhanced_quiz_questions(count)
           )
         )
       `)
@@ -1246,11 +1246,12 @@ export const getStudentQuizzesUltraFast = async (userId: string): Promise<Studen
 
     const allQuizzes: any[] = [];
     (data || []).forEach((userCourse: any) => {
-      if (userCourse.courses?.quizzes) {
-        userCourse.courses.quizzes.forEach((quiz: any) => {
+      if (userCourse.courses?.enhanced_quizzes) {
+        userCourse.courses.enhanced_quizzes.forEach((quiz: any) => {
           allQuizzes.push({
             ...quiz,
-            course_title: userCourse.courses.title
+            course_title: userCourse.courses.title,
+            questions_count: quiz.enhanced_quiz_questions?.[0]?.count || 0
           });
         });
       }
